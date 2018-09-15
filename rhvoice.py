@@ -37,9 +37,17 @@ class FakeFile(queue.Queue):
     def read(self, *_):
         if not self._open:
             return b''
-        data = self.get()
-        if not data:
-            self._open = False
+        if self.qsize():
+            data = b''
+            while self.qsize():
+                data_p = self.get()
+                data += data_p
+                if not data_p:
+                    self._open = False
+        else:
+            data = self.get()
+            if not data:
+                self._open = False
         return data
 
     def end(self):
