@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import threading
 import wave
+from contextlib import contextmanager
 from ctypes import string_at
 
 if __name__ == '__main__':
@@ -83,8 +84,6 @@ class TTS(threading.Thread):
         super().__init__()
         self._CMD = _cmd_init()
         self._wait = threading.Event()
-        self._lock = threading.Event()
-        self._lock.set()
         self._queue = queue.Queue()
         self._sample_rate = 24000
         self._format = 'wav'
@@ -172,23 +171,21 @@ class TTS(threading.Thread):
         self._sample_rate = rate
         return True
 
+    @contextmanager
     def say(self, text, voice='anna', format_='mp3', buff=1024):
         if format_ != 'wav' and format_ not in self._CMD:
             raise RuntimeError('Unsupported format: {}'.format(format_))
-        self._lock.wait(3600)
-        self._lock.clear()
         self._queue.put_nowait([text, voice, format_])
         self._wait.wait(3600)
         self._wait.clear()
-        for chunk in self._iter_me(buff):
-            yield chunk
+        yield self._iter_me(buff)
         self._wave_close()
-        self._lock.set()
 
     def to_file(self, filename, text, voice='anna', format_='mp3'):
         with open(filename, 'wb') as fp:
-            for chunk in self.say(text, voice, format_):
-                fp.write(chunk)
+            with self.say(text, voice, format_) as read:
+                for chunk in read:
+                    fp.write(chunk)
 
     def _iter_me(self, buff):
         while True:
@@ -233,7 +230,7 @@ class TTS(threading.Thread):
 
 def main():
     import time
-    names = ['mp3.mp3', 'opus.ogg', 'wav.wav']
+    names = ['wav.wav', 'mp3.mp3', 'opus.ogg', 'wav.wav']
     text = 'Я умею сохранять свой голос в {}'
     voice = 'anna'
     w_time = time.time()

@@ -351,7 +351,7 @@ def main():
     print('Number of voices: {}'.format(len(voices)))
     print()
 
-    texts = ['Я умею сохранять свой голос в mp3', ]
+    texts = ['Я умею сохранять свой голос в wav'] * 3
 
     synth_params = get_synth_params('anna')
     print('Load time: {}'.format(time.time() - start_time))
