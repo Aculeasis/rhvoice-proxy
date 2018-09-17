@@ -14,31 +14,31 @@ else:
     from rhvoice_proxy import rhvoice_proxy
 
 
+class WaveWrite(wave.Wave_write):
+    def _ensure_header_written(self, _):
+        pass
+
+    def _patchheader(self):
+        pass
+
+
 class FakeFile(queue.Queue):
     def __init__(self):
         super().__init__()
-        self._pos = 0
-        self._seeking = False
         self._open = True
 
-    def seek(self, pos, *_):
-        # Игнорируем попытки wave пропатчить хидер.
-        self._seeking = pos != self._pos
-
-    def tell(self, *_):
-        return self._pos
+    @staticmethod
+    def tell():
+        return 0
 
     def write(self, data):
-        writen = len(data)
-        if writen and not self._seeking:
+        if data:
             self.put_nowait(data)
-            self._pos += writen
-        return writen
 
     def read(self, *_):
         if not self._open:
             return b''
-        if self.qsize():
+        if self.qsize() > 1:
             data = b''
             while self.qsize():
                 data_p = self.get()
@@ -97,11 +97,9 @@ class TTS(threading.Thread):
         self._file = None
         self._wave = None
         self._work = True
-        self._processing = False
         self.start()
 
-    def _popen_open(self):
-        self._popen_close()
+    def _popen_create(self):
         self._popen = subprocess.Popen(
             self._CMD.get(self._format),
             stderr=subprocess.PIPE,
@@ -109,14 +107,21 @@ class TTS(threading.Thread):
             stdin=subprocess.PIPE
         )
 
-    def _file_open(self):
-        self._file_close()
-        self._file = FakeFile()
-
-    def _wave_open(self):
+    def _start_stream(self):
         self._wave_close()
-        self._file_open()
-        self._wave = wave.Wave_write(self._file)
+        if self._file:
+            self._file = None
+        if self._popen:
+            self._popen.kill()
+            self._popen = None
+        if self._format in self._CMD:
+            self._popen_create()
+            target = self._popen.stdin
+        else:
+            self._file = FakeFile()
+            target = self._file
+
+        self._wave = WaveWrite(target)
         self._wave.setnchannels(1)
         self._wave.setsampwidth(self.SAMPLE_SIZE)
         self._wave.setframerate(self._sample_rate)
@@ -125,18 +130,6 @@ class TTS(threading.Thread):
         if self._wave:
             self._wave.close()
             self._wave = None
-        self._file_close()
-        self._popen_close()
-
-    def _file_close(self):
-        if self._file:
-            self._file.close()
-            self._file = None
-
-    def _popen_close(self):
-        if self._popen:
-            self._popen.kill()
-            self._popen = None
 
     def join(self, timeout=None):
         self._work = False
@@ -145,27 +138,14 @@ class TTS(threading.Thread):
 
     def _speech_callback(self, samples, count, *_):
         if not self._wave:
-            self._wave_open()
-            # TODO: Посчитать хидер самостоятельно и выкинуть wave
+            self._start_stream()
             # noinspection PyProtectedMember
-            self._wave._write_header(0xFFFFFFF)  # Задаем 'бесконечную' длинну файла
+            self._wave._write_header(0xFFFFFFF)  # Задаем 'бесконечную' длину файла
             self._wave.writeframesraw(string_at(samples, count * self.SAMPLE_SIZE))
-            if self._format in self._CMD:
-                self._popen_open()
-                self._in_out()
             self._wait.set()
         else:
             self._wave.writeframesraw(string_at(samples, count * self.SAMPLE_SIZE))
-            if self._popen:
-                self._in_out()
         return self._work
-
-    def _in_out(self):
-        data = self._file.read()
-        if data:
-            self._popen.stdin.write(data)
-            return True
-        return False
 
     def _sr_callback(self, rate, *_):
         self._sample_rate = rate
@@ -179,7 +159,6 @@ class TTS(threading.Thread):
         self._wait.wait(3600)
         self._wait.clear()
         yield self._iter_me(buff)
-        self._wave_close()
 
     def to_file(self, filename, text, voice='anna', format_='mp3'):
         with open(filename, 'wb') as fp:
@@ -189,36 +168,23 @@ class TTS(threading.Thread):
 
     def _iter_me(self, buff):
         while True:
-            if self._popen:
-                chunk = self._popen.stdout.read(buff)
-            else:
-                chunk = self._file.read()
+            chunk = self._popen.stdout.read(buff) if self._popen else self._file.read()
             if not chunk:
-                if self._processing:
-                    continue
-                else:
-                    break
+                break
             yield chunk
 
     def _generate(self, text, voice, format_):
         self._format = format_
-        synth_params = rhvoice_proxy.get_synth_params(voice)
-        self._processing = True
-        rhvoice_proxy.speak_generate(text, synth_params, self._engine)
-        if self._wave:
-            self._wave.close()
-            self._wave = None
-        self._file.end()
-
+        rhvoice_proxy.speak_generate(text, rhvoice_proxy.get_synth_params(voice), self._engine)
+        self._wave_close()
+        if self._file:
+            self._file.end()
         if self._popen:
-            while self._in_out():
-                pass
             self._popen.stdin.close()
             try:
                 self._popen.wait(5)
             except subprocess.TimeoutExpired:
                 pass
-        self._processing = False
 
     def run(self):
         while True:
