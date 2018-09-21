@@ -137,18 +137,16 @@ class TTS(threading.Thread):
         super().join(timeout)
 
     def _speech_callback(self, samples, count, *_):
-        if not self._wave:
-            self._start_stream()
-            # noinspection PyProtectedMember
-            self._wave._write_header(0xFFFFFFF)  # Задаем 'бесконечную' длину файла
-            self._wave.writeframesraw(string_at(samples, count * self.SAMPLE_SIZE))
-            self._wait.set()
-        else:
-            self._wave.writeframesraw(string_at(samples, count * self.SAMPLE_SIZE))
+        self._wave.writeframesraw(string_at(samples, count * self.SAMPLE_SIZE))
         return self._work
 
     def _sr_callback(self, rate, *_):
         self._sample_rate = rate
+
+        self._start_stream()
+        # noinspection PyProtectedMember
+        self._wave._write_header(0xFFFFFFF)  # Задаем 'бесконечную' длину файла
+        self._wait.set()
         return True
 
     @contextmanager
