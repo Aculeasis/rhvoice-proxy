@@ -30,7 +30,6 @@ import wave
 from ctypes import CDLL, CFUNCTYPE, POINTER, Structure, c_char_p, c_double
 from ctypes import c_int, c_uint, c_short, c_void_p, byref, sizeof, string_at
 
-LIB = None
 RESPONSE_TIME = 0
 
 
@@ -126,9 +125,6 @@ class RHVoice_synth_params(Structure):
 
 
 def load_tts_library(lib_path=None):
-    global LIB
-    if LIB:
-        return LIB
     lib_path = lib_path or 'RHVoice.dll' if os.name == 'nt' else 'libRHVoice.so'
     lib = CDLL(lib_path if os.name == 'nt' else lib_path.encode())
     lib.RHVoice_get_version.restype = c_char_p
@@ -153,7 +149,6 @@ def load_tts_library(lib_path=None):
     lib.RHVoice_delete_message.restype = None
     lib.RHVoice_speak.argtypes = (RHVoice_message,)
     lib.RHVoice_speak.restype = c_int
-    LIB = lib
     return lib
 
 
@@ -229,51 +224,36 @@ class WaveWriteCallback(SpeechCallback):
         return True
 
 
-def get_rhvoice_version():
-    global LIB
-    if not LIB:
-        load_tts_library()
-    return LIB.RHVoice_get_version().decode('utf-8')
+def get_rhvoice_version(lib):
+    return lib.RHVoice_get_version().decode('utf-8')
 
 
-def get_engine(play_speech_cb=DebugCallback(), set_sample_rate_cb=None, resources=None, data_path=None):
+def get_engine(lib, params, play_speech_cb=DebugCallback(), set_sample_rate_cb=None, resources=None, data_path=None):
     """
     Load DLL and initialize speech engine - load language data
     and set callbacks.
     """
 
-    global LIB, init_params  # need to preserve reference for ctypes
-    if not LIB:
-        load_tts_library()
-
-    # creating obligatory callback with .play_speech()
-    # RHVoice_new_tts_engine fails without callback
     callbacks = RHVoice_callbacks()
     callbacks.play_speech = RHVoice_callback_types.play_speech(play_speech_cb)
     callbacks.set_sample_rate = RHVoice_callback_types.set_sample_rate(
         set_sample_rate_cb or play_speech_cb.set_sample_rate
     )
-    # possible callbacks
+
     resource_paths = [b'/usr/local/etc/RHVoice/dicts/Russian/', ] if not resources else [k.encode() for k in resources]
-    init_params = RHVoice_init_params()
-    # noinspection PyTypeChecker
-    init_params.resource_paths = (c_char_p * (len(resource_paths) + 1))(*(resource_paths + [None]))
-    init_params.data_path = data_path.encode() if data_path else b'/usr/local/share/RHVoice'
-    init_params.callbacks = callbacks
-    # init_params.config_path = '/usr/local/etc/RHVoice/RHVoice.conf'.encode()
-    engine = LIB.RHVoice_new_tts_engine(byref(init_params))
+    # noinspection PyTypeChecker,PyCallingNonCallable
+    params.resource_paths = (c_char_p * (len(resource_paths) + 1))(*(resource_paths + [None]))
+    params.data_path = data_path.encode() if data_path else b'/usr/local/share/RHVoice'
+    params.callbacks = callbacks
+    engine = lib.RHVoice_new_tts_engine(byref(params))
     if not engine:
         raise RuntimeError('RHVoice: engine initialization error')
     return engine
 
 
-def get_synth_params(voice: str):
-    voice = voice or 'anna'
-    voice = voice.capitalize()
-    if voice != 'Anna':
-        voice = '{}+Anna'.format(voice)
+def get_synth_params():
     return RHVoice_synth_params(
-        voice_profile=voice.encode(),
+        voice_profile=b'Anna',
         absolute_rate=0,
         relative_rate=1,
         absolute_pitch=0,
@@ -286,11 +266,9 @@ def get_synth_params(voice: str):
     )
 
 
-def speak_generate(text, synth_params, engine):
-    if not LIB:
-        raise RuntimeError('RHVoice: Load library before')
+def speak_generate(lib, text, synth_params, engine):
     text = text.encode()
-    message = LIB.RHVoice_new_message(
+    message = lib.RHVoice_new_message(
         engine,
         text,
         len(text),
@@ -300,23 +278,20 @@ def speak_generate(text, synth_params, engine):
     )
     if not message:
         raise RuntimeError('RHVoice: message building error')
-    LIB.RHVoice_speak(message)
-    LIB.RHVoice_delete_message(message)  # free the memory (check when message is stored)
+    lib.RHVoice_speak(message)
+    lib.RHVoice_delete_message(message)  # free the memory (check when message is stored)
 
 
-def get_voices(engine):
+def get_voices(lib, engine):
     """
     Returns nested dictionary with voice information. First
     level key is voice name in lowercase, second level keys
     are voice properties.
     """
-    global LIB
-    if not LIB:
-        load_tts_library()
     genders = {1: 'male', 2: 'female'}
     voices = dict()
-    voices_total = LIB.RHVoice_get_number_of_voices(engine)
-    first_voice = LIB.RHVoice_get_voices(engine)
+    voices_total = lib.RHVoice_get_number_of_voices(engine)
+    first_voice = lib.RHVoice_get_voices(engine)
     for voiceno in range(voices_total):
         vi = first_voice[voiceno]
         key = vi.name.lower().decode()
@@ -329,19 +304,50 @@ def get_voices(engine):
     return voices
 
 
+class Engine:
+    def __init__(self, lib_path=None):
+        self._lib = load_tts_library(lib_path)
+        self._engine = None
+        self._params = RHVoice_init_params()
+        self._synth_params = get_synth_params()
+
+    @property
+    def version(self):
+        return get_rhvoice_version(self._lib)
+
+    def init(self, play_speech_cb=DebugCallback(), set_sample_rate_cb=None, resources=None, data_path=None):
+        # noinspection PyTypeChecker
+        self._engine = get_engine(self._lib, self._params, play_speech_cb, set_sample_rate_cb, resources, data_path)
+
+    @property
+    def voices(self):
+        return get_voices(self._lib, self._engine)
+
+    def set_voice(self, voice: str):
+        voice = voice or 'anna'
+        voice = voice.capitalize()
+        if voice != 'Anna':
+            voice = '{}+Anna'.format(voice)
+        self._synth_params.voice_profile = voice.encode()
+
+    def generate(self, text):
+        speak_generate(self._lib, text, self._synth_params, self._engine)
+
+
 def main():
     global RESPONSE_TIME
     start_time = time.time()
+    rhvoice = Engine()
 
     print('Versions:')
-    print(' RHVoice:    {}'.format(get_rhvoice_version()))
+    print(' RHVoice:    {}'.format(rhvoice.version))
     print(' Python API: {}'.format(__version__))
     print()
 
     wave_ = WaveWriteCallback()
-    engine = get_engine(wave_)
+    rhvoice.init(wave_)
 
-    voices = get_voices(engine)
+    voices = rhvoice.voices
     voice_order = sorted(voices.items(), key=lambda x: x[1]['no'])
     voice_order = [v[0] for v in voice_order]
     print('Voice     Language  Gender')
@@ -353,13 +359,13 @@ def main():
 
     texts = ['Я умею сохранять свой голос в wav'] * 3
 
-    synth_params = get_synth_params('anna')
+    rhvoice.set_voice('anna')
     print('Load time: {}'.format(time.time() - start_time))
     for i in range(len(texts)):
         start_time = time.time()
         RESPONSE_TIME = 0
         wave_.set('{}.wav'.format(i))
-        speak_generate(texts[i], synth_params, engine)
+        rhvoice.generate(texts[i])
         response = RESPONSE_TIME - start_time
         start_time = time.time() - start_time
         print('{}. Work: {}, Response: {}'.format(i, start_time, response))
