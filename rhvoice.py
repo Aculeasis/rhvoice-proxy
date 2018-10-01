@@ -97,9 +97,6 @@ class BaseTTS:
 
     def _engine_init(self):
         self._engine = rhvoice_proxy.Engine(self._params[0])
-        api = rhvoice_proxy.__version__
-        if api != self._engine.version:
-            print('Warning! API version ({}) different of library version ({})'.format(api, self._engine.version))
         self._engine.init(self._speech_callback, self._sr_callback, self._params[2], self._params[1])
 
     def _popen_create(self):
@@ -329,13 +326,23 @@ class MultiTTS:
         _ = [x.join() for x in self._workers]
 
 
+def _test_engine(lib_path, data_path, resources):
+    test = rhvoice_proxy.Engine(lib_path)
+    test.init(data_path=data_path, resources=resources)
+    api = rhvoice_proxy.__version__
+    if api != test.version:
+        print('Warning! API version ({}) different of library version ({})'.format(api, test.version))
+    return {key for key in test.voices}
+
+
 def TTS(cmd=None, lib_path=None, data_path=None, resources=None, threads=1):
     threads = threads if threads > 0 else 1
     cmd = cmd or _cmd_init()
+    voices = _test_engine(lib_path, data_path, resources)
     if threads == 1:
-        return OneTTS(cmd, lib_path, data_path, resources)
+        return OneTTS(cmd, lib_path, data_path, resources), voices
     else:
-        return MultiTTS(threads, cmd, lib_path, data_path, resources)
+        return MultiTTS(threads, cmd, lib_path, data_path, resources), voices
 
 
 def main():
@@ -343,7 +350,7 @@ def main():
     text = 'Я умею сохранять свой голос в {}'
     voice = 'anna'
     w_time = time.time()
-    tts = TTS()
+    (tts, _) = TTS()
     print('Init time: {}'.format(time.time() - w_time))
     print()
     for name in names:
