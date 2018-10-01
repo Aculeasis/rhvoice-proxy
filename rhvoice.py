@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import multiprocessing
+import os
 import queue
 import shutil
 import subprocess
@@ -10,10 +11,10 @@ import wave
 from contextlib import contextmanager
 from ctypes import string_at
 
-if __name__ == '__main__':
-    import rhvoice_proxy
-else:
+try:
     from rhvoice_proxy import rhvoice_proxy
+except ImportError:
+    import rhvoice_proxy
 
 
 class WaveWrite(wave.Wave_write):
@@ -64,18 +65,21 @@ class FakeFile(queue.Queue):
         pass
 
 
-def _cmd_init():
-    base_cmd = {
-        'mp3': [['lame', '-htv', '--silent', '-', '-'], 'lame', 'lame'],
-        'opus': [['opusenc', '--quiet', '--discard-comments', '--ignorelength', '-', '-'], 'opusenc', 'opus-tools']
-    }
-    cmd = {}
-    for key, val in base_cmd.items():
-        if shutil.which(val[1]):
-            cmd[key] = val[0]
-        else:
-            print('Disable {} support - {} not found. Use apt install {}'.format(key, val[1], val[2]))
-    return cmd
+class _InOut(threading.Thread):
+    BUFF = 1024
+
+    def __init__(self, in_, out_):
+        super().__init__()
+        self._in = in_
+        self._out = out_
+        self.start()
+
+    def run(self):
+        while True:
+            chunk = self._in.read(self.BUFF)
+            self._out.put_nowait(chunk)
+            if not chunk:
+                break
 
 
 class BaseTTS:
@@ -93,6 +97,8 @@ class BaseTTS:
         self._popen = None
         self._file = None
         self._wave = None
+        self._in_out = None
+        self._stream = queue.Queue()
         self._work = True
 
     def _engine_init(self):
@@ -110,9 +116,11 @@ class BaseTTS:
     def _select_target(self):
         if self._format in self._CMD:
             self._popen_create()
+            self._in_out = _InOut(self._popen.stdout, self._stream)
             return self._popen.stdin
         else:
             self._file = FakeFile()
+            self._in_out = _InOut(self._file, self._stream)
             return self._file
 
     def _start_stream(self):
@@ -163,7 +171,7 @@ class BaseTTS:
 
     def _iter_me(self, buff):
         while True:
-            chunk = self._popen.stdout.read(buff) if self._popen else self._file.read()
+            chunk = self._stream.get()
             if not chunk:
                 break
             yield chunk
@@ -197,27 +205,14 @@ class OneTTS(BaseTTS, threading.Thread):
         BaseTTS.__init__(self, *args, **kwargs)
         self.start()
 
+    def _select_target(self):
+        self._stream = queue.Queue()
+        return super()._select_target()
+
     def join(self, timeout=None):
         self._work = False
         self._queue.put_nowait(None)
         super().join()
-
-
-class _InOut(threading.Thread):
-    BUFF = 1024
-
-    def __init__(self, in_, out_):
-        super().__init__()
-        self._in = in_
-        self._out = out_
-        self.start()
-
-    def run(self):
-        while True:
-            chunk = self._in.read(self.BUFF)
-            self._out.put_nowait(chunk)
-            if not chunk:
-                break
 
 
 class ProcessTTS(BaseTTS, multiprocessing.Process):
@@ -229,11 +224,10 @@ class ProcessTTS(BaseTTS, multiprocessing.Process):
         self._wait = multiprocessing.Event()
         self._queue = multiprocessing.Queue()
         self._processing = multiprocessing.Event()
-        self._reading = multiprocessing.Event()
+        self.reading = multiprocessing.Event()
         self._processing.set()
-        self._reading.set()
+        self.reading.set()
         self._stream = multiprocessing.Queue()
-        self._in_out = None
         self.start()
 
     def _clear_old(self):  # Удаляем старые данные, если есть
@@ -247,24 +241,17 @@ class ProcessTTS(BaseTTS, multiprocessing.Process):
 
     def _select_target(self):
         self._clear_old()
-        if self._format in self._CMD:
-            self._popen_create()
-            self._in_out = _InOut(self._popen.stdout, self._stream)
-            return self._popen.stdin
-        else:
-            self._file = FakeFile()
-            self._in_out = _InOut(self._file, self._stream)
-            return self._file
+        return super()._select_target()
 
     def busy(self):
-        return not (self._processing.is_set() and self._reading.is_set())
+        return not (self._processing.is_set() and self.reading.is_set())
 
     def set_busy(self):
         self._processing.clear()
-        self._reading.clear()
+        self.reading.clear()
 
     def _clear_busy(self):
-        self._reading.set()
+        self.reading.set()
         self._processing.set()
 
     def _generate(self, *args):
@@ -272,9 +259,9 @@ class ProcessTTS(BaseTTS, multiprocessing.Process):
             super()._generate(*args)
         finally:
             # Wait while client reading data
-            while not self._reading.is_set():
+            while not self.reading.is_set():
                 current_size = self._stream.qsize()
-                self._reading.wait(self.TIMEOUT)
+                self.reading.wait(self.TIMEOUT)
                 if current_size == self._stream.qsize():
                     # Don't reading data? Client disconnected - set process as free
                     break
@@ -282,13 +269,10 @@ class ProcessTTS(BaseTTS, multiprocessing.Process):
 
     def _iter_me(self, buff):
         try:
-            while True:
-                chunk = self._stream.get()
-                if not chunk:
-                    break
+            for chunk in super()._iter_me(buff):
                 yield chunk
         finally:
-            self._reading.set()
+            self.reading.set()
 
     def join(self, timeout=None):
         self._work = False
@@ -303,8 +287,18 @@ class MultiTTS:
         self._workers = tuple([ProcessTTS(*args, **kwargs) for _ in range(count)])
         self._lock = threading.Lock()
         self._work = True
+        self._nowait = False
+
+    def nowait(self, val: bool):
+        self._nowait = val
+
+    def to_file(self, filename, text, voice='anna', format_='mp3'):
+        return self._caller().to_file(filename, text, voice, format_)
 
     def say(self, text, voice='anna', format_='mp3', buff=1024):
+        return self._caller().say(text, voice, format_, buff)
+
+    def _caller(self):
         self._lock.acquire()
         end_time = time.perf_counter() + self.TIMEOUT
         try:
@@ -312,7 +306,9 @@ class MultiTTS:
                 for worker in self._workers:
                     if not worker.busy():
                         worker.set_busy()
-                        return worker.say(text, voice, format_, buff)
+                        if self._nowait:
+                            worker.reading.set()
+                        return worker
                 time.sleep(0.05)
                 if time.perf_counter() > end_time:
                     raise RuntimeError('Still busy')
@@ -326,39 +322,148 @@ class MultiTTS:
         _ = [x.join() for x in self._workers]
 
 
-def _test_engine(lib_path, data_path, resources):
-    test = rhvoice_proxy.Engine(lib_path)
-    test.init(data_path=data_path, resources=resources)
-    api = rhvoice_proxy.__version__
-    if api != test.version:
-        print('Warning! API version ({}) different of library version ({})'.format(api, test.version))
-    return {key for key in test.voices}
+class TTS:
+    def __init__(self, **kwargs):
+        envs = self._get_environs()
+        for key in envs.keys():
+            if key in kwargs:
+                envs[key] = kwargs[key]
+        self._threads = self._prepare_threads(envs['threads'])
+        self._process = envs.get('force_process', False) or self._threads > 1
 
+        self._cmd = self._get_cmd(envs['lame_path'], envs['opus_path'])
+        self._formats = tuple(['wav'] + [key for key in self._cmd])
 
-def TTS(cmd=None, lib_path=None, data_path=None, resources=None, threads=1):
-    threads = threads if threads > 0 else 1
-    cmd = cmd or _cmd_init()
-    voices = _test_engine(lib_path, data_path, resources)
-    if threads == 1:
-        return OneTTS(cmd, lib_path, data_path, resources), voices
-    else:
-        return MultiTTS(threads, cmd, lib_path, data_path, resources), voices
+        self._api = rhvoice_proxy.__version__
+
+        test = rhvoice_proxy.Engine(envs['lib_path'])
+        self._version = test.version
+        if self._api != self._version:
+            print('Warning! API version ({}) different of library version ({})'.format(self._api, self._version))
+        test.init(data_path=envs['data_path'], resources=envs['resources'])
+        self._voices = test.voices
+        del test
+
+        if self._process:
+            tts = MultiTTS(self._threads, self._cmd, envs['lib_path'], envs['data_path'], envs['resources'])
+            self._burn = tts.nowait
+        else:
+            tts = OneTTS(self._cmd, envs['lib_path'], envs['data_path'], envs['resources'])
+            self._burn = None
+
+        self.say = tts.say
+        self.to_file = tts.to_file
+        self.join = tts.join
+
+    @property
+    def formats(self):
+        return self._formats
+
+    @property
+    def thread_count(self):
+        return self._threads
+
+    @property
+    def process(self):
+        return self._process
+
+    @property
+    def voices(self):
+        return tuple([key for key in self._voices])
+
+    @property
+    def api_version(self):
+        return self._api
+
+    @property
+    def lib_version(self):
+        return self._version
+
+    @property
+    def voices_info(self):
+        return self._voices
+
+    @property
+    def cmd(self):
+        return self._cmd
+
+    @staticmethod
+    def _get_environs():
+        names = ['lib_path', 'data_path', 'resources', 'lame_path', 'opus_path', 'threads']
+        variables = ['RHVOICELIBPATH', 'RHVOICEDATAPATH', 'RHVOICERESOURCES', 'LAMEPATH', 'OPUSENCPATH', 'THREADED']
+        return {names[idx]: os.environ.get(variables[idx])for idx in range(len(variables))}
+
+    @staticmethod
+    def _prepare_threads(threads):
+        if threads is None:
+            return 1
+        if isinstance(threads, bool):
+            if threads:
+                return multiprocessing.cpu_count()
+            else:
+                return 1
+        try:
+            threads = int(threads)
+        except ValueError:
+            threads = 1
+        else:
+            threads = threads if threads > 0 else 1
+        return threads
+
+    @staticmethod
+    def _get_cmd(lame, opus):
+        base_cmd = {
+            'mp3': [[lame or 'lame', '-htv', '--silent', '-', '-'], 'lame'],
+            'opus': [[opus or 'opusenc', '--quiet', '--discard-comments', '--ignorelength', '-', '-'], 'opus-tools']
+        }
+        cmd = {}
+        for key, val in base_cmd.items():
+            if shutil.which(val[0][0]):
+                cmd[key] = val[0]
+            else:
+                print('Disable {} support - {} not found. Use apt install {}'.format(key, val[0][0], val[1]))
+        return cmd
+
+    def benchmarks(self):
+        # PPS - Phrases Per Second
+        # i7-8700k: 80.3 PPS
+        # OrangePi Prime: 4.4 PPS
+        if self._burn is None:
+            return 'Only for multiprocessing mode'
+        self._burn(True)
+        text = 'Так себе, вызовы сэй будут блокировать выполнение'
+        for _ in range(self.thread_count):
+            with self.say(text, format_='wav') as fp:
+                next(fp, None)
+        time.sleep(2)
+        yield 'Start...'
+        count = 0
+        test_time = 30
+        end_time = time.perf_counter() + test_time
+        try:
+            while True:
+                with self.say(text, format_='wav') as fp:
+                    next(fp, None)
+                count += 1
+                if end_time < time.perf_counter():
+                    work_time = time.perf_counter() - (end_time - test_time)
+                    pps = count / work_time
+                    yield 'PPS: {:.4f} (run {:.3f} sec)'.format(pps, work_time)
+                    end_time = time.perf_counter() + test_time
+                    count = 0
+        finally:
+            self._burn(False)
 
 
 def main():
-    names = ['wav.wav', 'mp3.mp3', 'opus.ogg', 'wav.wav']
-    text = 'Я умею сохранять свой голос в {}'
-    voice = 'anna'
-    w_time = time.time()
-    (tts, _) = TTS()
-    print('Init time: {}'.format(time.time() - w_time))
-    print()
-    for name in names:
-        format_ = name.split('.', 1)[0]
-        w_time = time.time()
-        tts.to_file(name, text.format(format_), voice, format_)
-        w_time = time.time() - w_time
-        print('File {} created in {} sec.'.format(name, w_time))
+    tts = TTS(threads=int(multiprocessing.cpu_count() * 1.5))
+    print('Lib version: {}'.format(tts.lib_version))
+    print('Threads: {}'.format(tts.thread_count))
+    print('Formats: {}'.format(tts.formats))
+    print('Voices: {}'.format(tts.voices))
+    for result in tts.benchmarks():
+        print(result)
+    tts.join()
 
 
 if __name__ == '__main__':
