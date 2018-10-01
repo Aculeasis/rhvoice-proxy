@@ -219,6 +219,8 @@ class _InOut(threading.Thread):
 
 
 class ProcessTTS(BaseTTS, multiprocessing.Process):
+    TIMEOUT = 1
+
     def __init__(self, *args, **kwargs):
         multiprocessing.Process.__init__(self)
         BaseTTS.__init__(self, *args, **kwargs)
@@ -227,6 +229,7 @@ class ProcessTTS(BaseTTS, multiprocessing.Process):
         self._processing = multiprocessing.Event()
         self._reading = multiprocessing.Event()
         self._processing.set()
+        self._reading.set()
         self._stream = multiprocessing.Queue()
         self._in_out = None
         self.start()
@@ -252,17 +255,28 @@ class ProcessTTS(BaseTTS, multiprocessing.Process):
             return self._file
 
     def busy(self):
-        return not self._processing.is_set() or self._reading.is_set()
+        return not (self._processing.is_set() and self._reading.is_set())
 
     def set_busy(self):
         self._processing.clear()
+        self._reading.clear()
+
+    def _clear_busy(self):
         self._reading.set()
+        self._processing.set()
 
     def _generate(self, *args):
         try:
             super()._generate(*args)
         finally:
-            self._processing.set()
+            # Wait while client reading data
+            while not self._reading.is_set():
+                current_size = self._stream.qsize()
+                self._reading.wait(self.TIMEOUT)
+                if current_size == self._stream.qsize():
+                    # Don't reading data? Client disconnected - set process as free
+                    break
+            self._clear_busy()
 
     def _iter_me(self, buff):
         try:
@@ -272,7 +286,7 @@ class ProcessTTS(BaseTTS, multiprocessing.Process):
                     break
                 yield chunk
         finally:
-            self._reading.clear()
+            self._reading.set()
 
     def join(self, timeout=None):
         self._work = False
