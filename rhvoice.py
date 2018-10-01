@@ -84,19 +84,23 @@ class BaseTTS:
 
     def __init__(self, cmd, lib_path=None, data_path=None, resources=None):
         self._CMD = cmd
+        self._params = (lib_path, data_path, resources)
         self._wait = threading.Event()
         self._queue = queue.Queue()
         self._sample_rate = 24000
         self._format = 'wav'
-        self._engine = rhvoice_proxy.Engine(lib_path)
-        api = rhvoice_proxy.__version__
-        if api != self._engine.version:
-            print('Warning! API version ({}) different of library version ({})'.format(api, self._engine.version))
-        self._engine.init(self._speech_callback, self._sr_callback, resources, data_path)
+        self._engine = None
         self._popen = None
         self._file = None
         self._wave = None
         self._work = True
+
+    def _engine_init(self):
+        self._engine = rhvoice_proxy.Engine(self._params[0])
+        api = rhvoice_proxy.__version__
+        if api != self._engine.version:
+            print('Warning! API version ({}) different of library version ({})'.format(api, self._engine.version))
+        self._engine.init(self._speech_callback, self._sr_callback, self._params[2], self._params[1])
 
     def _popen_create(self):
         self._popen = subprocess.Popen(
@@ -182,6 +186,7 @@ class BaseTTS:
                 pass
 
     def run(self):
+        self._engine_init()
         while True:
             data = self._queue.get()
             if data is None:
@@ -324,9 +329,9 @@ class MultiTTS:
         _ = [x.join() for x in self._workers]
 
 
-def TTS(lib_path=None, data_path=None, resources=None, threads=1):
+def TTS(cmd=None, lib_path=None, data_path=None, resources=None, threads=1):
     threads = threads if threads > 0 else 1
-    cmd = _cmd_init()
+    cmd = cmd or _cmd_init()
     if threads == 1:
         return OneTTS(cmd, lib_path, data_path, resources)
     else:
