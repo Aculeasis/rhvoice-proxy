@@ -158,7 +158,7 @@ class BaseTTS:
     def say(self, text, voice='anna', format_='mp3', buff=1024):
         if format_ != 'wav' and format_ not in self._CMD:
             raise RuntimeError('Unsupported format: {}'.format(format_))
-        self._queue.put_nowait([text, voice, format_])
+        self._queue.put_nowait((text, voice, format_))
         self._wait.wait(3600)
         self._wait.clear()
         yield self._iter_me(buff)
@@ -168,6 +168,9 @@ class BaseTTS:
             with self.say(text, voice, format_) as read:
                 for chunk in read:
                     fp.write(chunk)
+
+    def set_params(self, **kwargs):
+        self._queue.put_nowait(kwargs)
 
     def _iter_me(self, buff):
         while True:
@@ -196,7 +199,10 @@ class BaseTTS:
             data = self._queue.get()
             if data is None:
                 break
-            self._generate(*data)
+            if isinstance(data, dict):
+                self._engine.set_params(**data)
+            else:
+                self._generate(*data)
 
 
 class OneTTS(BaseTTS, threading.Thread):
@@ -315,6 +321,10 @@ class MultiTTS:
         finally:
             self._lock.release()
 
+    def set_params(self, **kwargs):
+        for worker in self._workers:
+            worker.set_params(**kwargs)
+
     def join(self, *_):
         if not self._work:
             return
@@ -353,6 +363,7 @@ class TTS:
 
         self.say = tts.say
         self.to_file = tts.to_file
+        self.set_params = tts.set_params
         self.join = tts.join
 
     @property
