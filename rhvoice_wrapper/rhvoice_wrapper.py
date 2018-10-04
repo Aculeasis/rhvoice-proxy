@@ -11,10 +11,7 @@ import wave
 from contextlib import contextmanager
 from ctypes import string_at
 
-try:
-    from rhvoice_proxy import rhvoice_proxy
-except ImportError:
-    import rhvoice_proxy
+from rhvoice_wrapper import rhvoice_proxy
 
 
 class WaveWrite(wave.Wave_write):
@@ -123,13 +120,19 @@ class BaseTTS:
             self._in_out = _InOut(self._file, self._stream)
             return self._file
 
-    def _start_stream(self):
+    def _close_all(self):
         self._wave_close()
         if self._file:
             self._file = None
         if self._popen:
+            self._popen.stderr.close()
+            self._popen.stdout.close()
+            self._popen.stdin.close()
             self._popen.kill()
             self._popen = None
+
+    def _start_stream(self):
+        self._close_all()
 
         self._wave = WaveWrite(self._select_target())
         self._wave.setnchannels(1)
@@ -472,8 +475,12 @@ def main():
     print('Threads: {}'.format(tts.thread_count))
     print('Formats: {}'.format(tts.formats))
     print('Voices: {}'.format(tts.voices))
+    max_ = 5
     for result in tts.benchmarks():
         print(result)
+        max_ -= 1
+        if not max_:
+            break
     tts.join()
 
 

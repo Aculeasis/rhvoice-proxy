@@ -1,10 +1,6 @@
 .idea
-0.mp3
-0.wav
-1.wav
-2.wav
 __pycache__
-mp3.mp3
-opus.ogg
-wav.wav
+build/
+dist/
+rhvoice_wrapper.egg-info/
 
