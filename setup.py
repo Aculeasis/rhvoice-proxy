@@ -5,7 +5,7 @@ with open('README.md') as fh:
 
 setup(
     name='rhvoice-wrapper',
-    version='0.1.0',
+    version='0.1.1',
     packages=['rhvoice_wrapper'],
     url='https://github.com/Aculeasis/rhvoice-proxy',
     license='GPLv3+',
