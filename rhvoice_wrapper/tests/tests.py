@@ -3,8 +3,8 @@
 import os
 import unittest
 
+from rhvoice_wrapper import TTS
 from rhvoice_wrapper import rhvoice_proxy
-from rhvoice_wrapper.rhvoice_wrapper import TTS
 
 
 class Monolithic(unittest.TestCase):
