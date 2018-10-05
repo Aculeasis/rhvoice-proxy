@@ -3,9 +3,13 @@ from setuptools import setup
 with open('README.md') as fh:
     long_description = fh.read()
 
+with open('version') as fh:
+    version = fh.read().splitlines()[0]
+print(version)
+
 setup(
     name='rhvoice-wrapper',
-    version='0.1.1',
+    version=version,
     packages=['rhvoice_wrapper'],
     url='https://github.com/Aculeasis/rhvoice-proxy',
     license='GPLv3+',
