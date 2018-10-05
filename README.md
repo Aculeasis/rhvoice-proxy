@@ -7,7 +7,7 @@ This very fast and more convenient than call RHVoice-test. Off the shelf support
 ## Install
 `pip install rhvoice-wrapper`
 
-This Package **NOT** provide [RHvoice](https://github.com/Olga-Yakovleva/RHVoice). You must be build (or install) RHVoice, languages and voices manually. In Windows you must specify the paths for work.
+This package **NOT** provide [RHvoice](https://github.com/Olga-Yakovleva/RHVoice). You must be build (or install) RHVoice, languages and voices manually. In Windows you must specify the paths for work.
 
 ## Documentation
 
@@ -22,7 +22,7 @@ You may set options when creating or through variable environments (UPPER REGIST
 - **force_process**: If `True`, force using multiprocessing mode. Default `False`.
 - **lib_path** or **RHVOICELIBPATH**: Path to RHVoice library. Default `libRHVoice.so` in Linux and `RHVoice.dll` in Windows.
 - **data_path** or **RHVOICEDATAPATH**: Path to folder, containing voices and languages folders. Default `/usr/local/share/RHVoice`.
-- **resources** or **RHVOICERESOURCES**: List of paths. I do not know what is this. Default: `['/usr/local/etc/RHVoice/dicts/Russian/']`.
+- **resources** or **RHVOICERESOURCES**: List of paths, optional. I do not know what is this. Default: `['/usr/local/etc/RHVoice/dicts/Russian/']`.
 - **lame_path** or **LAMEPATH**: Path to `lame`, optional. Lame must be present for `mp3` support. Default `lame`.
 - **opus_path** or **OPUSENCPATH**: Path to `opusenc`, optional. File must be present for `opus` support. Default `opusenc`.
 
