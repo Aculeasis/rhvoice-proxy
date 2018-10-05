@@ -7,9 +7,9 @@ sudo:
 before_install:
   - sudo apt-get update -y
   - sudo apt-get -y install --no-install-recommends lame python3 locales opus-tools
-  - sudo apt-get -y install --no-install-recommends git scons build-essential python3-pip python3-setuptools
+  - sudo apt-get -y install --no-install-recommends git scons build-essential python3-pip
 install:
-  true
+  - pip install setuptools wheel
 before_script:
   - sudo locale-gen ru_RU.UTF-8
   - git clone https://github.com/Olga-Yakovleva/RHVoice.git
@@ -20,4 +20,8 @@ before_script:
   - sudo ldconfig
   - cd ..
 script:
+  - pip install rhvoice-wrapper --only-binary rhvoice-wrapper
+  - pip uninstall rhvoice-wrapper -y
+  - pip install rhvoice-wrapper --no-binary rhvoice-wrapper
+  - python setup.py sdist bdist_wheel
   - python -m unittest discover -v -s rhvoice_wrapper/tests/
