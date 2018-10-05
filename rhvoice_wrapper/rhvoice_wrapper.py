@@ -11,10 +11,13 @@ import wave
 from contextlib import contextmanager
 from ctypes import string_at
 
-from rhvoice_wrapper import rhvoice_proxy
+try:
+    from rhvoice_wrapper import rhvoice_proxy
+except ImportError:
+    import rhvoice_proxy
 
 
-class WaveWrite(wave.Wave_write):
+class _WaveWrite(wave.Wave_write):
     def _ensure_header_written(self, _):
         pass
 
@@ -22,7 +25,7 @@ class WaveWrite(wave.Wave_write):
         pass
 
 
-class FakeFile(queue.Queue):
+class _FakeFile(queue.Queue):
     def __init__(self):
         super().__init__()
         self._open = True
@@ -79,87 +82,108 @@ class _InOut(threading.Thread):
                 break
 
 
-class BaseTTS:
+class _AudioWorker:
     BUFF_SIZE = 1024
     SAMPLE_SIZE = 2
 
-    def __init__(self, cmd, lib_path=None, data_path=None, resources=None):
-        self._CMD = cmd
-        self._params = (lib_path, data_path, resources)
-        self._wait = threading.Event()
-        self._queue = queue.Queue()
-        self._sample_rate = 24000
-        self._format = 'wav'
-        self._engine = None
+    def __init__(self, cmd, stream_):
+        self._cmd = cmd
+        self._stream = stream_
         self._popen = None
         self._file = None
         self._wave = None
         self._in_out = None
-        self._stream = queue.Queue()
+
+        self.qsize = self._stream.qsize
+        self.get = self._stream.get
+
+    def start_processing(self, format_, rate=24000):
+        self._clear_stream()
+
+        self._file = None
+        self._popen = None
+        self._in_out = None
+
+        self._wave = _WaveWrite(self._select_target(format_))
+        self._wave.setnchannels(1)
+        self._wave.setsampwidth(self.SAMPLE_SIZE)
+        self._wave.setframerate(rate)
+        # noinspection PyProtectedMember
+        self._wave._write_header(0xFFFFFFF)  # Задаем 'бесконечную' длину файла
+
+    def processing(self, samples, count):
+        self._wave.writeframesraw(string_at(samples, count * self.SAMPLE_SIZE))
+
+    def end_processing(self):
+        if self._wave:
+            self._wave.close()
+        if self._file:
+            self._file.end()
+        if self._popen:
+            self._popen.stdin.close()
+            self._popen.stderr.close()
+            try:
+                self._popen.wait(5)
+            except subprocess.TimeoutExpired:
+                pass
+            self._popen.stdout.close()
+            self._popen.kill()
+        if self._in_out:
+            self._in_out.join()
+
+    def _clear_stream(self):
+        while self._stream.qsize():
+            try:
+                self._stream.get_nowait()
+            except queue.Empty:
+                break
+
+    def _create_popen(self, format_):
+        self._popen = subprocess.Popen(
+            self._cmd.get(format_),
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stdin=subprocess.PIPE
+        )
+
+    def _select_target(self, format_):
+        if format_ in self._cmd:
+            self._create_popen(format_)
+            self._in_out = _InOut(self._popen.stdout, self._stream)
+            return self._popen.stdin
+        else:
+            self._file = _FakeFile()
+            self._in_out = _InOut(self._file, self._stream)
+            return self._file
+
+
+class _BaseTTS:
+    def __init__(self, stream_, cmd, lib_path=None, data_path=None, resources=None):
+        self._cmd = cmd
+        self._params = (lib_path, data_path, resources)
+        self._wait = threading.Event()
+        self._queue = queue.Queue()
+        self._format = 'wav'
+        self._engine = None
+        self._worker = _AudioWorker(cmd=self._cmd, stream_=stream_)
         self._work = True
 
     def _engine_init(self):
         self._engine = rhvoice_proxy.Engine(self._params[0])
         self._engine.init(self._speech_callback, self._sr_callback, self._params[2], self._params[1])
 
-    def _popen_create(self):
-        self._popen = subprocess.Popen(
-            self._CMD.get(self._format),
-            stderr=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stdin=subprocess.PIPE
-        )
-
-    def _select_target(self):
-        if self._format in self._CMD:
-            self._popen_create()
-            self._in_out = _InOut(self._popen.stdout, self._stream)
-            return self._popen.stdin
-        else:
-            self._file = FakeFile()
-            self._in_out = _InOut(self._file, self._stream)
-            return self._file
-
-    def _close_all(self):
-        self._wave_close()
-        if self._file:
-            self._file = None
-        if self._popen:
-            self._popen.stderr.close()
-            self._popen.stdout.close()
-            self._popen.stdin.close()
-            self._popen.kill()
-            self._popen = None
-
-    def _start_stream(self):
-        self._close_all()
-
-        self._wave = WaveWrite(self._select_target())
-        self._wave.setnchannels(1)
-        self._wave.setsampwidth(self.SAMPLE_SIZE)
-        self._wave.setframerate(self._sample_rate)
-
-    def _wave_close(self):
-        if self._wave:
-            self._wave.close()
-            self._wave = None
-
     def _speech_callback(self, samples, count, *_):
-        self._wave.writeframesraw(string_at(samples, count * self.SAMPLE_SIZE))
+        self._worker.processing(samples, count)
         return self._work
 
     def _sr_callback(self, rate, *_):
-        self._sample_rate = rate
-
-        self._start_stream()
-        # noinspection PyProtectedMember
-        self._wave._write_header(0xFFFFFFF)  # Задаем 'бесконечную' длину файла
+        self._worker.start_processing(self._format, rate)
         self._wait.set()
         return True
 
     @contextmanager
     def say(self, text, voice='anna', format_='mp3', buff=1024):
-        if format_ != 'wav' and format_ not in self._CMD:
+        if format_ != 'wav' and format_ not in self._cmd:
             raise RuntimeError('Unsupported format: {}'.format(format_))
         self._queue.put_nowait((text, voice, format_))
         self._wait.wait(3600)
@@ -177,7 +201,7 @@ class BaseTTS:
 
     def _iter_me(self, buff):
         while True:
-            chunk = self._stream.get()
+            chunk = self._worker.get()
             if not chunk:
                 break
             yield chunk
@@ -186,15 +210,7 @@ class BaseTTS:
         self._format = format_
         self._engine.set_voice(voice)
         self._engine.generate(text)
-        self._wave_close()
-        if self._file:
-            self._file.end()
-        if self._popen:
-            self._popen.stdin.close()
-            try:
-                self._popen.wait(5)
-            except subprocess.TimeoutExpired:
-                pass
+        self._worker.end_processing()
 
     def run(self):
         self._engine_init()
@@ -208,15 +224,11 @@ class BaseTTS:
                 self._generate(*data)
 
 
-class OneTTS(BaseTTS, threading.Thread):
+class OneTTS(_BaseTTS, threading.Thread):
     def __init__(self, *args, **kwargs):
         threading.Thread.__init__(self)
-        BaseTTS.__init__(self, *args, **kwargs)
+        _BaseTTS.__init__(self, queue.Queue(), *args, **kwargs)
         self.start()
-
-    def _select_target(self):
-        self._stream = queue.Queue()
-        return super()._select_target()
 
     def join(self, timeout=None):
         self._work = False
@@ -224,33 +236,19 @@ class OneTTS(BaseTTS, threading.Thread):
         super().join()
 
 
-class ProcessTTS(BaseTTS, multiprocessing.Process):
+class ProcessTTS(_BaseTTS, multiprocessing.Process):
     TIMEOUT = 1
 
     def __init__(self, *args, **kwargs):
         multiprocessing.Process.__init__(self)
-        BaseTTS.__init__(self, *args, **kwargs)
+        _BaseTTS.__init__(self, multiprocessing.Queue(), *args, **kwargs)
         self._wait = multiprocessing.Event()
         self._queue = multiprocessing.Queue()
         self._processing = multiprocessing.Event()
         self.reading = multiprocessing.Event()
         self._processing.set()
         self.reading.set()
-        self._stream = multiprocessing.Queue()
         self.start()
-
-    def _clear_old(self):  # Удаляем старые данные, если есть
-        if self._in_out:
-            self._in_out.join()
-        while self._stream.qsize():
-            try:
-                self._stream.get_nowait()
-            except queue.Empty:
-                break
-
-    def _select_target(self):
-        self._clear_old()
-        return super()._select_target()
 
     def busy(self):
         return not (self._processing.is_set() and self.reading.is_set())
@@ -269,9 +267,9 @@ class ProcessTTS(BaseTTS, multiprocessing.Process):
         finally:
             # Wait while client reading data
             while not self.reading.is_set():
-                current_size = self._stream.qsize()
+                current_size = self._worker.qsize()
                 self.reading.wait(self.TIMEOUT)
-                if current_size == self._stream.qsize():
+                if current_size == self._worker.qsize():
                     # Don't reading data? Client disconnected - set process as free
                     break
             self._clear_busy()
