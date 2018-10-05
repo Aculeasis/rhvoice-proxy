@@ -5,7 +5,6 @@ with open('README.md') as fh:
 
 with open('version') as fh:
     version = fh.read().splitlines()[0]
-print(version)
 
 setup(
     name='rhvoice-wrapper',
