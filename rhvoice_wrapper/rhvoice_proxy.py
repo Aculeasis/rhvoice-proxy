@@ -30,7 +30,13 @@ import wave
 from ctypes import CDLL, CFUNCTYPE, POINTER, Structure, c_char_p, c_double
 from ctypes import c_int, c_uint, c_short, c_void_p, byref, sizeof, string_at
 
-RESPONSE_TIME = 0
+try:
+    import rhvoice_wrapper_data
+    _LIB_PATH = rhvoice_wrapper_data.lib_path
+    _DATA_PATH = rhvoice_wrapper_data.data_path
+except ImportError:
+    _LIB_PATH = None
+    _DATA_PATH = None
 
 
 # --- bindings ---
@@ -215,12 +221,9 @@ class WaveWriteCallback(SpeechCallback):
 
     def __call__(self, samples, count, user_data):
         """Should return False to stop synthesis"""
-        global RESPONSE_TIME
         if not self.file:
             self._open()
         self.file.writeframes(string_at(samples, count * self.sample_size))
-        if not RESPONSE_TIME:
-            RESPONSE_TIME = time.time()
         return True
 
 
@@ -290,7 +293,8 @@ def get_voices(lib, engine):
 
 
 class Engine:
-    def __init__(self, lib_path=None):
+    def __init__(self, lib_path=_LIB_PATH):
+        print('lib_path={}'.format(lib_path))
         self._lib = load_tts_library(lib_path)
         self._engine = None
         self._params = RHVoice_init_params()
@@ -310,7 +314,8 @@ class Engine:
     def version(self):
         return get_rhvoice_version(self._lib)
 
-    def init(self, play_speech_cb=DebugCallback(), set_sample_rate_cb=None, resources=None, data_path=None):
+    def init(self, play_speech_cb=DebugCallback(), set_sample_rate_cb=None, resources=None, data_path=_DATA_PATH):
+        print('data_path={}'.format(data_path))
         # noinspection PyTypeChecker
         self._engine = get_engine(self._lib, self._params, play_speech_cb, set_sample_rate_cb, resources, data_path)
 

@@ -158,9 +158,9 @@ class _AudioWorker:
 
 
 class _BaseTTS:
-    def __init__(self, stream_, cmd, lib_path=None, data_path=None, resources=None):
+    def __init__(self, stream_, cmd, **kwargs):
         self._cmd = cmd
-        self._params = (lib_path, data_path, resources)
+        self._kwargs = kwargs
         self._wait = threading.Event()
         self._queue = queue.Queue()
         self._format = 'wav'
@@ -169,8 +169,8 @@ class _BaseTTS:
         self._work = True
 
     def _engine_init(self):
-        self._engine = rhvoice_proxy.Engine(self._params[0])
-        self._engine.init(self._speech_callback, self._sr_callback, self._params[2], self._params[1])
+        self._engine = rhvoice_proxy.Engine(**self._kwargs)
+        self._engine.init(self._speech_callback, self._sr_callback, **self._kwargs)
 
     def _speech_callback(self, samples, count, *_):
         self._worker.processing(samples, count)
@@ -335,31 +335,29 @@ class MultiTTS:
 
 class TTS:
     def __init__(self, **kwargs):
-        envs = self._get_environs()
-        for key in envs.keys():
-            if key in kwargs:
-                envs[key] = kwargs[key]
-        self._threads = self._prepare_threads(envs['threads'])
-        self._process = envs.get('force_process', False) or self._threads > 1
+        envs = self._get_environs(kwargs)
 
-        self._cmd = self._get_cmd(envs['lame_path'], envs['opus_path'])
+        self._threads = self._prepare_threads(envs.pop('threads', None))
+        self._process = envs.pop('force_process', False) or self._threads > 1
+
+        self._cmd = self._get_cmd(envs.pop('lame_path', None), envs.pop('opus_path', None))
         self._formats = tuple(['wav'] + [key for key in self._cmd])
 
         self._api = rhvoice_proxy.__version__
 
-        test = rhvoice_proxy.Engine(envs['lib_path'])
+        test = rhvoice_proxy.Engine(**envs)
         self._version = test.version
         if self._api != self._version:
             print('Warning! API version ({}) different of library version ({})'.format(self._api, self._version))
-        test.init(data_path=envs['data_path'], resources=envs['resources'])
+        test.init(**envs)
         self._voices = test.voices
         del test
 
         if self._process:
-            tts = MultiTTS(self._threads, self._cmd, envs['lib_path'], envs['data_path'], envs['resources'])
+            tts = MultiTTS(self._threads, self._cmd, **envs)
             self._burn = tts.nowait
         else:
-            tts = OneTTS(self._cmd, envs['lib_path'], envs['data_path'], envs['resources'])
+            tts = OneTTS(self._cmd, **envs)
             self._burn = None
 
         self.say = tts.say
@@ -400,10 +398,16 @@ class TTS:
         return self._cmd
 
     @staticmethod
-    def _get_environs():
+    def _get_environs(kwargs):
         names = ['lib_path', 'data_path', 'resources', 'lame_path', 'opus_path', 'threads']
         variables = ['RHVOICELIBPATH', 'RHVOICEDATAPATH', 'RHVOICERESOURCES', 'LAMEPATH', 'OPUSENCPATH', 'THREADED']
-        return {names[idx]: os.environ.get(variables[idx])for idx in range(len(variables))}
+        result = {}
+        for idx in range(len(variables)):
+            if variables[idx] in os.environ:
+                result[names[idx]] = os.environ[variables[idx]]
+            if names[idx] in kwargs:
+                result[names[idx]] = kwargs[names[idx]]
+        return result
 
     @staticmethod
     def _prepare_threads(threads):
