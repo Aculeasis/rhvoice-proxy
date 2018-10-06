@@ -294,7 +294,6 @@ def get_voices(lib, engine):
 
 class Engine:
     def __init__(self, lib_path=_LIB_PATH):
-        print('lib_path={}'.format(lib_path))
         self._lib = load_tts_library(lib_path)
         self._engine = None
         self._params = RHVoice_init_params()
@@ -315,7 +314,6 @@ class Engine:
         return get_rhvoice_version(self._lib)
 
     def init(self, play_speech_cb=DebugCallback(), set_sample_rate_cb=None, resources=None, data_path=_DATA_PATH):
-        print('data_path={}'.format(data_path))
         # noinspection PyTypeChecker
         self._engine = get_engine(self._lib, self._params, play_speech_cb, set_sample_rate_cb, resources, data_path)
 
