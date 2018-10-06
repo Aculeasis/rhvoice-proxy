@@ -2,6 +2,7 @@
 
 import os
 import threading
+import traceback
 import unittest
 
 from rhvoice_wrapper import TTS
@@ -136,6 +137,8 @@ class Monolithic(unittest.TestCase):
                 step()
                 print('ok')
             except Exception as e:
+                print('FAILED')
+                traceback.print_exc()
                 self.fail('{} failed ({}: {})'.format(step, type(e), e))
 
 
