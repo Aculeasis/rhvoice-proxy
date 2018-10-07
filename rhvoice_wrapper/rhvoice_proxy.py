@@ -31,9 +31,9 @@ from ctypes import CDLL, CFUNCTYPE, POINTER, Structure, c_char_p, c_double
 from ctypes import c_int, c_uint, c_short, c_void_p, byref, sizeof, string_at
 
 try:
-    import rhvoice_wrapper_data
-    _LIB_PATH = rhvoice_wrapper_data.lib_path
-    _DATA_PATH = rhvoice_wrapper_data.data_path
+    import rhvoice_wrapper_bin
+    _LIB_PATH = rhvoice_wrapper_bin.lib_path
+    _DATA_PATH = rhvoice_wrapper_bin.data_path
 except ImportError:
     _LIB_PATH = None
     _DATA_PATH = None
