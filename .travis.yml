@@ -10,18 +10,13 @@ before_install:
   - sudo apt-get -y install --no-install-recommends git scons build-essential python3-pip
 install:
   - pip install setuptools wheel
+  - pip install rhvoice-wrapper-bin
 before_script:
   - sudo locale-gen ru_RU.UTF-8
-  - git clone https://github.com/Olga-Yakovleva/RHVoice.git
-  - cd RHVoice
-  - git checkout dc36179
-  - scons
-  - sudo scons install
-  - sudo ldconfig
-  - cd ..
 script:
   - pip install rhvoice-wrapper --only-binary rhvoice-wrapper
   - pip uninstall rhvoice-wrapper -y
   - pip install rhvoice-wrapper --no-binary rhvoice-wrapper
   - python setup.py sdist bdist_wheel
+  - export LD_LIBRARY_PATH=$(pip show rhvoice-wrapper-bin | grep Location | awk '{print $2}')/rhvoice_wrapper_bin/lib/
   - python -m unittest discover -v -s rhvoice_wrapper/tests/
