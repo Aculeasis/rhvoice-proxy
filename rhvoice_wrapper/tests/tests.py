@@ -53,6 +53,7 @@ class Monolithic(unittest.TestCase):
         self.engine.set_voice(self.voice)
         self.wave.set(self.files['wav_base'])
         self.engine.generate(self.msg.format('wav'))
+        self.wave.close()
 
     def step_03_tts(self):
         self.assertGreater(len(self.tts.voices), 0)
