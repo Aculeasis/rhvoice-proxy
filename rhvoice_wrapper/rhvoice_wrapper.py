@@ -76,7 +76,10 @@ class _InOut(threading.Thread):
 
     def run(self):
         while True:
-            chunk = self._in.read(self.BUFF)
+            try:
+                chunk = self._in.read(self.BUFF)
+            except ValueError:
+                chunk = b''
             self._out.put_nowait(chunk)
             if not chunk:
                 break
