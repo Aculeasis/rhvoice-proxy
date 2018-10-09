@@ -1,22 +1,45 @@
 language:
   python
-python:
-  '3.6'
+
+matrix:
+  include:
+  - python: '3.6'
+    env: DEPLOY=true
+  - python: '3.7'
+  allow_failures:
+    - python: '3.7'
+
 sudo:
   true
+
+git:
+  depth: 1
+
 before_install:
   - sudo apt-get update -y
-  - sudo apt-get -y install --no-install-recommends lame python3 locales opus-tools
-  - sudo apt-get -y install --no-install-recommends git scons build-essential python3-pip
+  - sudo apt-get -y install --no-install-recommends lame opus-tools
+  - sudo apt-get -y install --no-install-recommends scons build-essential
 install:
   - pip install setuptools wheel
   - pip install rhvoice-wrapper-bin
 before_script:
   - sudo locale-gen ru_RU.UTF-8
 script:
-  - pip install rhvoice-wrapper --only-binary rhvoice-wrapper
-  - pip uninstall rhvoice-wrapper -y
-  - pip install rhvoice-wrapper --no-binary rhvoice-wrapper
   - python setup.py sdist bdist_wheel
+  - pip install dist/*.gz
+  - pip uninstall rhvoice-wrapper -y
+  - pip install dist/*.whl
   - export LD_LIBRARY_PATH=$(pip show rhvoice-wrapper-bin | grep Location | awk '{print $2}')/rhvoice_wrapper_bin/lib/
   - python -m unittest discover -v -s rhvoice_wrapper/tests/
+
+deploy:
+  provider: pypi
+  user: Aculeasis
+  password:
+    secure: aKpXWC8xLepbMyR8q5VipMZwFCbPyBUeeu9u6eh5OC1abs1Enff42Zsnd5Rj7XhgKjNsFpftUvbvWRZ49TGDEJl0Lie2fZuds/G8bQbDKB9urOTeLDSyIIVA03W2DA5LAym5Rn+rc2tiah9n7Dw8Dknqggami4vEKnZYsalkv9IRFKca6uYzwcvu6RJZ3EqLN/yXYP2DNdD9AApwOu+YeWkuo72UEXNJNcwV56sJ3/bkrAluHJGgu7PBKN3cwSV0tUwixSpOsLQlrOojvAs450m3e2Z9nJso52bqJLNZcUUk9LSCKqz+/y8Q5O14crkGyMiyE0V6bCL+RwQTjL17KFkMkLeRkZakCxo2winRLN9f6+wTDNmCHAVLPMZ0568IcretUPyhP5qtKxpk19Qz7yFxHvrIcOk0MaFCuLgM0AaUcMqnOTjEEvHv1UbHalxNrHsStuLXYsq/zJiHwFpZvyzI4fYmCQ2IEIfr1ANgFDfaAfmF4O77/ZDbpX/X59NX/mSUdUa/y24uHrIqh8iUaPdndrEB2ZYEsLBgitfFdLga3QKyl9JQXCeLYn4zZ7ZwSru7l7u1rmU4dP9dg6J9axBoMLDOSi/Sfve9KIAdL1L75ibpPuH/nKPV8udBL52X7OZ0db59jisrmBOCP/x/zbMjf4VYycYiG2k3hb+Ciho=
+  distributions: sdist bdist_wheel
+  skip_existing: true
+  on:
+    tags: true
+    branch: master
+    condition: "$DEPLOY == true"
