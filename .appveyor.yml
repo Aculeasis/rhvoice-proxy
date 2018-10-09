@@ -1,0 +1,37 @@
+version: 1.0.0 ({build})
+
+environment:
+  matrix:
+    - platform: x86
+      PYTHON: C:\Python34
+    - platform: x64
+      PYTHON: C:\Python34-x64
+    - platform: x86
+      PYTHON: C:\Python35
+    - platform: x64
+      PYTHON: C:\Python35-x64
+    - platform: x86
+      PYTHON: C:\Python36
+    - platform: x64
+      PYTHON: C:\Python36-x64
+    - platform: x64
+      PYTHON: C:\Python37
+    - platform: x64
+      PYTHON: C:\Python37-x64
+
+matrix:
+  fast_finish: true
+
+clone_depth: 1
+
+init:
+  - set PATH=%PYTHON%;%PYTHON%\Scripts;%PATH%
+
+install:
+  - pip install rhvoice-wrapper-data --only-binary rhvoice-wrapper-data
+  - pip install rhvoice-wrapper-bin rhvoice-wrapper-data --only-binary rhvoice-wrapper-bin rhvoice-wrapper-data
+  - appveyor AddMessage "Install success"
+
+test_script:
+  - python -m unittest discover -v -s rhvoice_wrapper\tests
+  - appveyor AddMessage "Testing success"
