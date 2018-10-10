@@ -10,14 +10,14 @@ environment:
       PYTHON: C:\Python35
     - platform: x64
       PYTHON: C:\Python35-x64
-    - platform: x86
-      PYTHON: C:\Python37
     - platform: x64
       PYTHON: C:\Python37-x64
     - platform: x64
       PYTHON: C:\Python34-x64
     - platform: x86
       PYTHON: C:\Python34
+    - platform: x86
+      PYTHON: C:\Python37
 
 matrix:
   fast_finish: false
@@ -36,5 +36,6 @@ install:
   - appveyor AddMessage "Install success"
 
 test_script:
-  - python -m unittest discover -v -s rhvoice_wrapper\tests
+  - python --version
+  - python -d -m unittest discover -v -s rhvoice_wrapper\tests
   - appveyor AddMessage "Testing success"
