@@ -3,12 +3,6 @@ version: 1.0.0 ({build})
 environment:
   matrix:
     - platform: x64
-      PYTHON: C:\Python36-x64
-    - platform: x86
-      PYTHON: C:\Python36
-    - platform: x86
-      PYTHON: C:\Python35
-    - platform: x64
       PYTHON: C:\Python35-x64
     - platform: x64
       PYTHON: C:\Python37-x64
@@ -18,9 +12,17 @@ environment:
       PYTHON: C:\Python34
     - platform: x86
       PYTHON: C:\Python37
+    - platform: x64
+      PYTHON: C:\Python36-x64
+    - platform: x86
+      PYTHON: C:\Python36
+    - platform: x86
+      PYTHON: C:\Python35
 
 matrix:
-  fast_finish: false
+  fast_finish: true
+
+clone_depth: 1
 
 build: off
 
@@ -36,6 +38,7 @@ install:
   - appveyor AddMessage "Install success"
 
 test_script:
-  - python --version
-  - python -d -m unittest discover -v -s rhvoice_wrapper\tests
+  - ver
+  - python -VV
+  - python -v -m unittest discover -v -s rhvoice_wrapper\tests
   - appveyor AddMessage "Testing success"
