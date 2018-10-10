@@ -5,29 +5,28 @@ environment:
     - platform: x64
       PYTHON: C:\Python36-x64
     - platform: x86
-      PYTHON: C:\Python34
-    - platform: x64
-      PYTHON: C:\Python34-x64
+      PYTHON: C:\Python36
     - platform: x86
       PYTHON: C:\Python35
     - platform: x64
       PYTHON: C:\Python35-x64
     - platform: x86
-      PYTHON: C:\Python36
-    - platform: x64
       PYTHON: C:\Python37
     - platform: x64
       PYTHON: C:\Python37-x64
+    - platform: x64
+      PYTHON: C:\Python34-x64
+    - platform: x86
+      PYTHON: C:\Python34
 
 matrix:
   fast_finish: false
-
-clone_depth: 1
 
 build: off
 
 init:
   - set PATH=%PYTHON%;%PYTHON%\Scripts;%PATH%
+  - set OPUSENCPATH=%APPVEYOR_BUILD_FOLDER%\opus\opusenc.exe
 
 install:
   - pip install rhvoice-wrapper-data --only-binary rhvoice-wrapper-data
@@ -37,6 +36,5 @@ install:
   - appveyor AddMessage "Install success"
 
 test_script:
-  - set OPUSENCPATH=%APPVEYOR_BUILD_FOLDER%\opus\opusenc.exe
   - python -m unittest discover -v -s rhvoice_wrapper\tests
   - appveyor AddMessage "Testing success"
