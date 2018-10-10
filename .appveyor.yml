@@ -2,6 +2,8 @@ version: 1.0.0 ({build})
 
 environment:
   matrix:
+    - platform: x64
+      PYTHON: C:\Python36-x64
     - platform: x86
       PYTHON: C:\Python34
     - platform: x64
@@ -13,14 +15,12 @@ environment:
     - platform: x86
       PYTHON: C:\Python36
     - platform: x64
-      PYTHON: C:\Python36-x64
-    - platform: x64
       PYTHON: C:\Python37
     - platform: x64
       PYTHON: C:\Python37-x64
 
 matrix:
-  fast_finish: true
+  fast_finish: false
 
 clone_depth: 1
 
