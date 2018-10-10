@@ -32,8 +32,12 @@ init:
 install:
   - pip install rhvoice-wrapper-data --only-binary rhvoice-wrapper-data
   - pip install rhvoice-wrapper-bin rhvoice-wrapper-data --only-binary rhvoice-wrapper-bin rhvoice-wrapper-data
+  - https://archive.mozilla.org/pub/opus/win32/opus-tools-0.2-win32.zip
+  - appveyor DownloadFile "https://archive.mozilla.org/pub/opus/win32/opus-tools-0.2-win32.zip" -FileName opus.zip
+  - 7z e opus.zip -oopus
   - appveyor AddMessage "Install success"
 
 test_script:
+  - set OPUSENCPATH=%APPVEYOR_BUILD_FOLDER%\opus\opusenc.exe
   - python -m unittest discover -v -s rhvoice_wrapper\tests
   - appveyor AddMessage "Testing success"
