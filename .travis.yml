@@ -3,11 +3,9 @@ language:
 
 matrix:
   include:
+  - python: '3.5'
   - python: '3.6'
     env: DEPLOY=true
-  - python: '3.7'
-  allow_failures:
-    - python: '3.7'
 
 sudo:
   true
