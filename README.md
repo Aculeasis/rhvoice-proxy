@@ -1,5 +1,5 @@
 ## High-level interface for RHVoice library
-[![PyPI version](https://img.shields.io/pypi/v/rhvoice-wrapper.svg)](https://pypi.org/project/rhvoice-wrapper/) [![Python versions](https://img.shields.io/pypi/pyversions/rhvoice-wrapper.svg)](https://pypi.org/project/rhvoice-wrapper/) [![PyPI - Format](https://img.shields.io/pypi/format/rhvoice-wrapper.svg)](https://pypi.org/project/rhvoice-wrapper/) [![Build Status](https://travis-ci.org/Aculeasis/rhvoice-proxy.svg?branch=master)](https://travis-ci.org/Aculeasis/rhvoice-proxy)
+[![PyPI version](https://img.shields.io/pypi/v/rhvoice-wrapper.svg)](https://pypi.org/project/rhvoice-wrapper/) [![Python versions](https://img.shields.io/pypi/pyversions/rhvoice-wrapper.svg)](https://pypi.org/project/rhvoice-wrapper/) [![PyPI - Format](https://img.shields.io/pypi/format/rhvoice-wrapper.svg)](https://pypi.org/project/rhvoice-wrapper/) [![Build Status](https://travis-ci.org/Aculeasis/rhvoice-proxy.svg?branch=master)](https://travis-ci.org/Aculeasis/rhvoice-proxy) [![Build status](https://ci.appveyor.com/api/projects/status/lan2fw4c4xl7pvya/branch/master?svg=true)](https://ci.appveyor.com/project/Aculeasis/rhvoice-proxy)
 
 Generate speech stream from text without re-initializing engine.
 This very fast and more convenient than call RHVoice-test. Off the shelf supports `wav`, `mp3` and `opus`.
@@ -8,6 +8,12 @@ This very fast and more convenient than call RHVoice-test. Off the shelf support
 `pip install rhvoice-wrapper`
 
 This package **NOT** provide [RHvoice](https://github.com/Olga-Yakovleva/RHVoice). You must be build (or install) RHVoice, languages and voices manually. In Windows you must specify the paths for work.
+
+#### rhvoice-wrapper-bin
+Instead of RHVoice you may install [rhvoice-wrapper-bin](https://github.com/Aculeasis/rhvoice-wrapper-bin). This is best way for Windows. 
+If the `rhvoice-wrapper-bin` is installed, its libraries and data will be used automatically.
+
+`pip install rhvoice-wrapper-bin`
 
 ## Documentation
 
@@ -82,10 +88,10 @@ tts.join()
 - [Example usage](https://github.com/Aculeasis/rhvoice-rest/blob/master/app.py)
 
 ## Requirements
-- RHvoice library, languages and voices.
-- Python 3+.
-
-Tested on python 3.6 in Linux and Windows 10.
+- OS Linux or Windows
+- RHvoice library, languages and voices
+- Python 3.4 +
 
 ## Links
 - [RHvoice](https://github.com/Olga-Yakovleva/RHVoice)
+- [rhvoice-wrapper-bin](https://github.com/Aculeasis/rhvoice-wrapper-bin)
