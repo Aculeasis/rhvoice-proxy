@@ -20,14 +20,14 @@ build: off
 
 init:
   - set PATH=%PYTHON%;%PYTHON%\Scripts;%PATH%
-  - set OPUSENCPATH=c:\opus\opusenc.exe
+  # - set OPUSENCPATH=c:\opus\opusenc.exe
 
 install:
   - pip install rhvoice-wrapper-data --only-binary rhvoice-wrapper-data
   - pip install rhvoice-wrapper-bin rhvoice-wrapper-data --only-binary rhvoice-wrapper-bin rhvoice-wrapper-data
   - appveyor DownloadFile "https://archive.mozilla.org/pub/opus/win32/opus-tools-0.2-win32.zip" -FileName opus.zip
-  - 7z e opus.zip -oc:\opus
-  - appveyor AddMessage "Install success"
+  # - 7z e opus.zip -oc:\opus
+  # - appveyor AddMessage "Install success"
 
 test_script:
   - ver
