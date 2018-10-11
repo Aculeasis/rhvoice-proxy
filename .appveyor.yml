@@ -25,6 +25,7 @@ init:
   # - set OPUSENCPATH=c:\opus\opusenc.exe
 
 install:
+  - python -m pip install --upgrade wheel
   - pip install rhvoice-wrapper-bin --only-binary rhvoice-wrapper-bin
   # - appveyor DownloadFile "https://archive.mozilla.org/pub/opus/win32/opus-tools-0.2-win32.zip" -FileName opus.zip
   # - 7z e opus.zip -oc:\opus
