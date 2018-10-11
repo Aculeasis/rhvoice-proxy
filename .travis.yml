@@ -25,10 +25,10 @@ before_script:
   - sudo locale-gen ru_RU.UTF-8
 
 script:
-  - python setup.py sdist --dist-dir=github bdist_wheel --dist-dir=github
-  - pip install github/*.gz
+  - python setup.py sdist bdist_wheel
+  - pip install dist/*.gz
   - pip uninstall rhvoice-wrapper -y
-  - pip install github/*.whl
+  - pip install dist/*.whl
   - export LD_LIBRARY_PATH=$(pip show rhvoice-wrapper-bin | grep Location | awk '{print $2}')/rhvoice_wrapper_bin/lib/
   - python -m unittest discover -v -s rhvoice_wrapper/tests/
 
@@ -38,6 +38,7 @@ deploy:
     password:
       secure: aKpXWC8xLepbMyR8q5VipMZwFCbPyBUeeu9u6eh5OC1abs1Enff42Zsnd5Rj7XhgKjNsFpftUvbvWRZ49TGDEJl0Lie2fZuds/G8bQbDKB9urOTeLDSyIIVA03W2DA5LAym5Rn+rc2tiah9n7Dw8Dknqggami4vEKnZYsalkv9IRFKca6uYzwcvu6RJZ3EqLN/yXYP2DNdD9AApwOu+YeWkuo72UEXNJNcwV56sJ3/bkrAluHJGgu7PBKN3cwSV0tUwixSpOsLQlrOojvAs450m3e2Z9nJso52bqJLNZcUUk9LSCKqz+/y8Q5O14crkGyMiyE0V6bCL+RwQTjL17KFkMkLeRkZakCxo2winRLN9f6+wTDNmCHAVLPMZ0568IcretUPyhP5qtKxpk19Qz7yFxHvrIcOk0MaFCuLgM0AaUcMqnOTjEEvHv1UbHalxNrHsStuLXYsq/zJiHwFpZvyzI4fYmCQ2IEIfr1ANgFDfaAfmF4O77/ZDbpX/X59NX/mSUdUa/y24uHrIqh8iUaPdndrEB2ZYEsLBgitfFdLga3QKyl9JQXCeLYn4zZ7ZwSru7l7u1rmU4dP9dg6J9axBoMLDOSi/Sfve9KIAdL1L75ibpPuH/nKPV8udBL52X7OZ0db59jisrmBOCP/x/zbMjf4VYycYiG2k3hb+Ciho=
     distributions: sdist bdist_wheel
+    skip_cleanup: true
     skip_existing: true
     on:
       tags: true
@@ -48,7 +49,7 @@ deploy:
     api_key:
       secure: iQohthr2wmVrRz1bvbHnEe+VORdl0HD1d0XnpRKKFkkp/G0BBeIOlNvU83gUN3zmaVTnHq3+bGIADbV55xWTHVDgewSsNc/xupFTGg0r5nGzB4D+QYsKEXDvhKQLDPKcJr25aE2/cvz9qQ5O2esOC07DHmocKGHKXzYc2SsqdH0L6vo3xnrg9SUJ8N5Xj8w620SHL5x82+QmdYj6JTF8T/i7NFoiRG080w0VuhQbgU/vR7L/PyRLmM1H9hzeeBHvIwcJYx8RVx+fdTV/q6SNeOz3wYVqTWH8w5UrX9KTNrJEdIrblLb9GyOrNNuGGOw/ebJTsVIjMZ/qZQuRPeW+C/zHEUUKJxP5PcgXfw8DxzxwoVz0BxonBR93KGvS0Icey5KhTRPI5huHF3XIKymifQWIs2BLH3QdjeHgdJxD6WrsAXhVwoBavx4trCBIzIqDLIQfAPE8l0SOalHbYPozVoTsQPCawW7oMxsA9xTGlnuLPJt5xIu38/3jdCfGVl6ApnanUUhV2LtmvT1ck//V4j1EGHLPxfR0jUl27mGBVknDbdn9+DqkrS9fq8ec/3XcTpL4evHjiMmDbZ5vQnh9rZ6/kUDmrTzCpAInzmJpOt8yh+ZjNwcsFOFzG/lrOJul+KY3yqvmLwmQlAl+1WYo+OmpgYsog7i+Hzqk57YntLI=
     file_glob: true
-    file: github/*
+    file: dist/*.gz
     skip_cleanup: true
     on:
       tags: true
