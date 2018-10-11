@@ -7,7 +7,9 @@ environment:
   - PYTHON: C:\Python35
   - PYTHON: C:\Python35-x64
   - PYTHON: C:\Python36
+    DEPLOY: true
   - PYTHON: C:\Python36-x64
+    DEPLOY: true
   - PYTHON: C:\Python37
   - PYTHON: C:\Python37-x64
 
@@ -26,6 +28,7 @@ install:
   - pip install rhvoice-wrapper-bin --only-binary rhvoice-wrapper-bin
   # - appveyor DownloadFile "https://archive.mozilla.org/pub/opus/win32/opus-tools-0.2-win32.zip" -FileName opus.zip
   # - 7z e opus.zip -oc:\opus
+  - python setup.py bdist_wheel bdist_wininst --dist-dir=github
   - appveyor AddMessage "Install success"
 
 test_script:
@@ -33,3 +36,13 @@ test_script:
   - python -VV
   - python -m unittest discover -v -s rhvoice_wrapper\tests
   - appveyor AddMessage "Testing success"
+
+deploy:
+  - provider: GitHub
+    auth_token:
+      secure: ctp+XBxvU4Q/6f55WYYIxUF06CAkiuO3VTUshHz4XWsC/sKTrQyQodIEkgfhvIPF
+    artifact: github\*
+    on:
+      branch: master
+      appveyor_repo_tag: true
+      DEPLOY: true
