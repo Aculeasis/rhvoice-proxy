@@ -293,21 +293,23 @@ def get_voices(lib, engine):
 
 
 class Engine:
+    SYNTHESIS_SET = {
+        'absolute_rate': 0,
+        'relative_rate': 1,
+        'absolute_pitch': 0,
+        'relative_pitch': 1,
+        'absolute_volume': 0,
+        'relative_volume': 1,
+        'punctuation_mode': RHVoice_punctuation_mode.default,
+        'capitals_mode': RHVoice_capitals_mode.default
+    }
+
     def __init__(self, lib_path=_LIB_PATH):
         self._lib = load_tts_library(lib_path)
         self._engine = None
         self._params = RHVoice_init_params()
-        self._synth_set = {
-            'absolute_rate': 0,
-            'relative_rate': 1,
-            'absolute_pitch': 0,
-            'relative_pitch': 1,
-            'absolute_volume': 0,
-            'relative_volume': 1,
-            'punctuation_mode': RHVoice_punctuation_mode.default,
-            'capitals_mode': RHVoice_capitals_mode.default
-        }
-        self._synth_params = self._get_synth_params(self._synth_set)
+        self._synth_params = None
+        self.set_params(**self.SYNTHESIS_SET)
 
     @property
     def version(self):
@@ -321,10 +323,6 @@ class Engine:
     def voices(self):
         return get_voices(self._lib, self._engine)
 
-    @property
-    def get_params(self):
-        return self._synth_set.copy()
-
     def set_voice(self, voice: str):
         voice = voice or 'anna'
         voice = voice.capitalize()
@@ -335,29 +333,8 @@ class Engine:
     def generate(self, text):
         speak_generate(self._lib, text, self._synth_params, self._engine)
 
-    def set_params(self, **kwargs):
-        if self._prepare_synth_params(kwargs):
-            self._synth_params = self._get_synth_params(self._synth_set)
-            return True
-        else:
-            return False
-
-    def _prepare_synth_params(self, data: dict):
-        adv = {'punctuation_mode': 3, 'capitals_mode': 4}
-        change = False
-        for key, val in data.items():
-            if key in self._synth_set and key not in adv and isinstance(val, (int, float)) and 0 <= val <= 2.5:
-                change = True
-                self._synth_set[key] = val
-        for key, val in adv.items():
-            if key in data and isinstance(data[key], int) and 0 <= data[key] <= val:
-                change = True
-                self._synth_set[key] = data[key]
-        return change
-
-    @staticmethod
-    def _get_synth_params(kw):
+    def set_params(self, **kw):
         val = kw.copy()
         val.update(voice_profile=b'Anna', punctuation_list=None)
-        return RHVoice_synth_params(**val)
+        self._synth_params = RHVoice_synth_params(**val)
 

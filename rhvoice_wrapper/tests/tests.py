@@ -76,7 +76,14 @@ class Monolithic(unittest.TestCase):
                 self.assertGreater(os.path.getsize(target), 0)
 
     def step_06_gen_files2(self):
-        self.tts.set_params(absolute_rate=1, absolute_pitch=1)
+        self.assertTrue(self.tts.set_params(absolute_rate=1, absolute_pitch=1))
+        self.assertFalse(self.tts.set_params(absolute_rate=1, absolute_pitch=1))
+        self.assertEqual(self.tts.get_params('absolute_rate'), 1)
+        self.assertEqual(self.tts.get_params('absolute_pitch'), 1)
+
+        self.assertTrue(isinstance(self.tts.get_params(), dict))
+        self.assertIsNone(self.tts.get_params('always missing'))
+
         for target in [[key, val] for key, val in self.files2.items() if key in self.tts.formats]:
             self.tts.to_file(filename=target[1], text=self.msg.format(target[0]), voice=self.voice, format_=target[0])
 

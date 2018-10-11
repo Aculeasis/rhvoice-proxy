@@ -53,6 +53,15 @@ tts.set_params(**kwargs)
 ```
 Allow: `absolute_rate, relative_rate, absolute_pitch, relative_pitch, absolute_volume, relative_volume, punctuation_mode, capitals_mode`. See RHVoice documentation for details.
 
+Return `True` if change, else `False`.
+
+#### get_params
+Get voice synthesizer settings:
+```python
+tts.get_params(param=None)
+```
+If param is `None` return all settings in `dict`, else parameter value by name as `numeric`. If parameter not found return `None`.
+
 #### benchmarks
 Synthetic benchmark. First return string 'start...', then results every 30 seconds. Works only in multiprocessing mode. Example:
 ```python

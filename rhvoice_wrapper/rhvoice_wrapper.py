@@ -354,6 +354,7 @@ class TTS:
             print('Warning! API version ({}) different of library version ({})'.format(self._api, self._version))
         test.init(**envs)
         self._voices = test.voices
+        self._synth_set = test.SYNTHESIS_SET.copy()
         del test
 
         if self._process:
@@ -365,7 +366,7 @@ class TTS:
 
         self.say = tts.say
         self.to_file = tts.to_file
-        self.set_params = tts.set_params
+        self.__set_params = tts.set_params
         self.join = tts.join
 
     @property
@@ -399,6 +400,35 @@ class TTS:
     @property
     def cmd(self):
         return self._cmd
+
+    def set_params(self, **kwargs):
+        if self._prepare_synth_params(kwargs):
+            self.__set_params(**self._synth_set)
+            return True
+        else:
+            return False
+
+    def get_params(self, param=None):
+        if param is None:
+            return self._synth_set.copy()
+        return self._synth_set.get(param)
+
+    def _prepare_synth_params(self, data: dict):
+        def _set():
+            if key in self._synth_set and self._synth_set[key] != val:
+                self._synth_set[key] = val
+                return True
+            return False
+
+        adv = {'punctuation_mode': 3, 'capitals_mode': 4}
+        change = False
+        for key, val in data.items():
+            if key in adv:
+                if isinstance(val, int) and 0 <= val <= adv[key]:
+                    change |= _set()
+            elif isinstance(val, (int, float)) and 0 <= val <= 2.5:
+                change |= _set()
+        return change
 
     @staticmethod
     def _get_environs(kwargs):
