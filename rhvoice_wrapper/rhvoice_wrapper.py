@@ -17,6 +17,24 @@ except ImportError:
     import rhvoice_proxy
 
 
+def prepare_synthesis_params(old: dict, data: dict):
+    def _set():
+        if key in old and old[key] != val:
+            old[key] = val
+            return True
+        return False
+
+    adv = {'punctuation_mode': 3, 'capitals_mode': 4}
+    change = False
+    for key, val in data.items():
+        if key in adv:
+            if isinstance(val, int) and 0 <= val <= adv[key]:
+                change |= _set()
+        elif isinstance(val, (int, float)) and -2 <= val <= 2.5:
+            change |= _set()
+    return change
+
+
 class _WaveWrite(wave.Wave_write):
     def _ensure_header_written(self, _):
         pass
@@ -164,6 +182,7 @@ class _BaseTTS:
     def __init__(self, stream_, cmd, **kwargs):
         self._cmd = cmd
         self._kwargs = kwargs.copy()
+        self._synthesis_param = rhvoice_proxy.Engine.SYNTHESIS_SET.copy()  # Current params
         self._lib_path = {} if 'lib_path' not in self._kwargs else {'lib_path': self._kwargs.pop('lib_path')}
         self._wait = threading.Event()
         self._queue = queue.Queue()
@@ -186,17 +205,19 @@ class _BaseTTS:
         return True
 
     @contextmanager
-    def say(self, text, voice='anna', format_='mp3', buff=1024):
+    def say(self, text, voice='anna', format_='mp3', buff=1024, sets=None):
         if format_ != 'wav' and format_ not in self._cmd:
             raise RuntimeError('Unsupported format: {}'.format(format_))
-        self._queue.put_nowait((text, voice, format_))
+        if sets is not None and not isinstance(sets, dict):
+            RuntimeError('Sets must be dict or None')
+        self._queue.put_nowait((text, voice, format_, sets))
         self._wait.wait(3600)
         self._wait.clear()
         yield self._iter_me(buff)
 
-    def to_file(self, filename, text, voice='anna', format_='mp3'):
+    def to_file(self, filename, text, voice='anna', format_='mp3', sets=None):
         with open(filename, 'wb') as fp:
-            with self.say(text, voice, format_) as read:
+            with self.say(text=text, voice=voice, format_=format_, sets=sets) as read:
                 for chunk in read:
                     fp.write(chunk)
 
@@ -210,11 +231,19 @@ class _BaseTTS:
                 break
             yield chunk
 
-    def _generate(self, text, voice, format_):
+    def _generate(self, text, voice, format_, sets):
+        rollback = False
+        if sets:
+            new_params = self._synthesis_param.copy()
+            rollback = prepare_synthesis_params(new_params, sets)
+            if rollback:
+                self._engine.set_params(**new_params)
         self._format = format_
         self._engine.set_voice(voice)
         self._engine.generate(text)
         self._worker.end_processing()
+        if rollback:
+            self._engine.set_params(**self._synthesis_param)
 
     def run(self):
         self._engine_init()
@@ -223,6 +252,7 @@ class _BaseTTS:
             if data is None:
                 break
             if isinstance(data, dict):
+                self._synthesis_param = data
                 self._engine.set_params(**data)
             else:
                 self._generate(*data)
@@ -303,11 +333,11 @@ class MultiTTS:
     def nowait(self, val: bool):
         self._nowait = val
 
-    def to_file(self, filename, text, voice='anna', format_='mp3'):
-        return self._caller().to_file(filename, text, voice, format_)
+    def to_file(self, filename, text, voice='anna', format_='mp3', sets=None):
+        return self._caller().to_file(filename, text, voice, format_, sets)
 
-    def say(self, text, voice='anna', format_='mp3', buff=1024):
-        return self._caller().say(text, voice, format_, buff)
+    def say(self, text, voice='anna', format_='mp3', buff=1024, sets=None):
+        return self._caller().say(text, voice, format_, buff, sets)
 
     def _caller(self):
         self._lock.acquire()
@@ -405,7 +435,7 @@ class TTS:
         return self._cmd
 
     def set_params(self, **kwargs):
-        if self._prepare_synth_params(kwargs):
+        if prepare_synthesis_params(self._synth_set, kwargs):
             self.__set_params(**self._synth_set)
             return True
         else:
@@ -415,23 +445,6 @@ class TTS:
         if param is None:
             return self._synth_set.copy()
         return self._synth_set.get(param)
-
-    def _prepare_synth_params(self, data: dict):
-        def _set():
-            if key in self._synth_set and self._synth_set[key] != val:
-                self._synth_set[key] = val
-                return True
-            return False
-
-        adv = {'punctuation_mode': 3, 'capitals_mode': 4}
-        change = False
-        for key, val in data.items():
-            if key in adv:
-                if isinstance(val, int) and 0 <= val <= adv[key]:
-                    change |= _set()
-            elif isinstance(val, (int, float)) and 0 <= val <= 2.5:
-                change |= _set()
-        return change
 
     @staticmethod
     def _get_environs(kwargs):

@@ -35,15 +35,17 @@ You may set options when creating or through variable environments (UPPER REGIST
 ### Usage
 Start synthesis generator and get audio data, chunk by chunk:
 ```python
-def generator_audio(text, voice, audio_format):
-    with tts.say(text, voice, audio_format) as gen:
+def generator_audio(text, voice, audio_format, sets):
+    with tts.say(text, voice, audio_format, sets=sets) as gen:
         for chunk in gen:
             yield chunk
 ```
 Or just save to file:
 ```python
-tts.to_file(filename='esperanto.ogg', text='Saluton mondo', voice='spomenka', format_='opus')
+tts.to_file(filename='esperanto.ogg', text='Saluton mondo', voice='spomenka', format_='opus', sets=None)
 ```
+`sets` may set as dict containing synthesis parameters as in [set_params](#set_params).
+This parameters only work for current phrase. Default `None`.
 
 ### Other methods
 #### set_params

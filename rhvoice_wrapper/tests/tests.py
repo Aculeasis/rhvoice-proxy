@@ -70,6 +70,16 @@ class Monolithic(unittest.TestCase):
         self.assertEqual(wav1, wav2)
         self.assertGreater(wav1, 0)
 
+    def step_050_sets_recovery(self):
+        sets = {'absolute_rate': 0.5}
+        self.tts.to_file(filename=self.files['wav_base'], text=self.msg, voice=self.voice, format_='wav', sets=sets)
+        self.tts.to_file(filename=self.files['wav'], text=self.msg, voice=self.voice, format_='wav')
+
+        wav1 = os.path.getsize(self.files['wav_base'])
+        wav2 = os.path.getsize(self.files['wav'])
+
+        self.assertNotEqual(wav1, wav2)
+
     def step_05_other_files(self):
         for target in [val for key, val in self.files.items() if key not in ['wav_base', 'wav']]:
             if os.path.isfile(target):
@@ -98,25 +108,33 @@ class Monolithic(unittest.TestCase):
         self.tts.join()
         self.tts = TTS(threads=3)
 
-        self.step_09_clear()
-        wav_size = self._test_processes_format('wav')
-        self.step_09_clear()
-
+        self.step_10_clear()
+        self._test_processes_format('wav')
+        wav_size = self._processes_eq_size()
+        self.step_10_clear()
         for test in ['opus', 'mp3']:
             if test in self.tts.formats:
-                lossy_size = self._test_processes_format(test)
+                self._test_processes_format(test)
+                lossy_size = self._processes_eq_size()
                 self.assertGreater(wav_size, lossy_size)
                 break
+        self.step_10_clear()
 
-    def _test_processes_format(self, format_):
+    def _test_processes_format(self, format_, sets=None):
         ths = []
+        pos = 0
         for x in self.files.values():
-            kwargs = {'filename': x, 'text': self.msg, 'voice': self.voice, 'format_': format_}
+            current_set = None
+            if sets:
+                current_set = sets[pos]
+                pos += 1
+            kwargs = {'filename': x, 'text': self.msg, 'voice': self.voice, 'format_': format_, 'sets': current_set}
             th = threading.Thread(target=self.tts.to_file, kwargs=kwargs)
             th.start()
             ths.append(th)
         [x.join() for x in ths]
 
+    def _processes_eq_size(self):
         first = os.path.getsize(self.files['wav_base'])
         self.assertGreater(first, 0)
         for test in self.files.values():
@@ -124,12 +142,26 @@ class Monolithic(unittest.TestCase):
             self.assertEqual(first, second)
         return first
 
-    def step_09_clear(self):
+    def _processes_diff_size(self):
+        all_size = [os.path.getsize(file) for file in self.files.values()]
+        counts = len(all_size)
+        for one in range(counts):
+            for two in range(counts):
+                if one == two:
+                    continue
+                self.assertNotEqual(all_size[one], all_size[two])
+
+    def step_09_test_sets(self):
+        volumes = [{'absolute_rate': x/1.2-1} for x in range(len(self.files))]
+        self._test_processes_format('wav', volumes)
+        self._processes_diff_size()
+
+    def step_10_clear(self):
         for val in [x for x in self.files.values()] + [x for x in self.files2.values()]:
             if os.path.isfile(val):
                 os.remove(val)
 
-    def step_10_join(self):
+    def step_11_join(self):
         self.tts.join()
 
     def _steps(self):
@@ -147,6 +179,8 @@ class Monolithic(unittest.TestCase):
             except Exception as e:
                 print('FAILED')
                 traceback.print_exc()
+                self.step_10_clear()
+                self.step_11_join()
                 self.fail('{} failed ({}: {})'.format(step, type(e), e))
 
 
