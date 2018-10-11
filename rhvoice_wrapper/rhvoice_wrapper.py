@@ -163,7 +163,8 @@ class _AudioWorker:
 class _BaseTTS:
     def __init__(self, stream_, cmd, **kwargs):
         self._cmd = cmd
-        self._kwargs = kwargs
+        self._kwargs = kwargs.copy()
+        self._lib_path = {} if 'lib_path' not in self._kwargs else {'lib_path': self._kwargs.pop('lib_path')}
         self._wait = threading.Event()
         self._queue = queue.Queue()
         self._format = 'wav'
@@ -172,7 +173,7 @@ class _BaseTTS:
         self._work = True
 
     def _engine_init(self):
-        self._engine = rhvoice_proxy.Engine(**self._kwargs)
+        self._engine = rhvoice_proxy.Engine(**self._lib_path)
         self._engine.init(self._speech_callback, self._sr_callback, **self._kwargs)
 
     def _speech_callback(self, samples, count, *_):
@@ -348,11 +349,13 @@ class TTS:
 
         self._api = rhvoice_proxy.__version__
 
-        test = rhvoice_proxy.Engine(**envs)
+        envs2 = envs.copy()
+        lib_path = {} if 'lib_path' not in envs2 else {'lib_path': envs2.pop('lib_path')}
+        test = rhvoice_proxy.Engine(**lib_path)
         self._version = test.version
         if self._api != self._version:
             print('Warning! API version ({}) different of library version ({})'.format(self._api, self._version))
-        test.init(**envs)
+        test.init(**envs2)
         self._voices = test.voices
         self._synth_set = test.SYNTHESIS_SET.copy()
         del test
