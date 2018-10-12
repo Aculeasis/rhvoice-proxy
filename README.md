@@ -5,7 +5,7 @@ Generate speech stream from text without re-initializing engine.
 This very fast and more convenient than call RHVoice-test. Off the shelf supports `wav`, `mp3` and `opus`.
 
 ## Install
-`pip install rhvoice-wrapper`
+`pip3 install rhvoice-wrapper`
 
 This package **NOT** provide [RHvoice](https://github.com/Olga-Yakovleva/RHVoice). You must be build (or install) RHVoice, languages and voices manually. In Windows you must specify the paths for work.
 
@@ -13,12 +13,12 @@ This package **NOT** provide [RHvoice](https://github.com/Olga-Yakovleva/RHVoice
 Instead of RHVoice you may install [rhvoice-wrapper-bin](https://github.com/Aculeasis/rhvoice-wrapper-bin). This is best way for Windows. 
 If the `rhvoice-wrapper-bin` is installed, its libraries and data will be used automatically.
 
-`pip install rhvoice-wrapper-bin`
+`pip3 install rhvoice-wrapper-bin`
 
 On **Linux** you **must** set package library path for LD before run python scripts. You may set `LD_LIBRARY_PATH`, this must be works:
 ```bash
 export LD_LIBRARY_PATH=$(pip3 show rhvoice-wrapper-bin | grep Location | awk '{print $2}')/rhvoice_wrapper_bin/lib/
-python -u <script using rhvoice_wrapper>
+python3 -u <script using rhvoice_wrapper>
 ```
 
 ## Documentation
