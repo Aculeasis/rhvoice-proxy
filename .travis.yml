@@ -18,6 +18,7 @@ before_install:
 
 install:
   - pip install setuptools wheel
+  - pip install rhvoice-wrapper-data
   - pip install rhvoice-wrapper-bin
 
 before_script:
@@ -27,7 +28,7 @@ script:
   - python setup.py sdist bdist_wheel
   - pip install --no-cache-dir dist/*.gz
   - pip uninstall rhvoice-wrapper -y
-  - pip install dist/*.whl
+  - pip install --no-cache-dir dist/*.whl
   - export LD_LIBRARY_PATH=$(pip show rhvoice-wrapper-bin | grep Location | awk '{print $2}')/rhvoice_wrapper_bin/lib/
   - python -m unittest discover -v -s rhvoice_wrapper/tests/
 
