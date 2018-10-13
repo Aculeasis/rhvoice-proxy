@@ -1,11 +1,9 @@
 language:
   python
 
-matrix:
-  include:
-  - python: '3.5'
-  - python: '3.6'
-    env: DEPLOY=true
+python:
+  - '3.5'
+  - '3.6'
 
 sudo:
   true
@@ -41,9 +39,9 @@ deploy:
     skip_cleanup: true
     skip_existing: true
     on:
+      condition: "$TRAVIS_PYTHON_VERSION == 3.6"
       tags: true
       branch: master
-      condition: "$DEPLOY == true"
 
   - provider: releases
     api_key:
@@ -52,6 +50,6 @@ deploy:
     file: dist/*.gz
     skip_cleanup: true
     on:
+      condition: "$TRAVIS_PYTHON_VERSION == 3.6"
       tags: true
       branch: master
-      condition: "$DEPLOY == true"
