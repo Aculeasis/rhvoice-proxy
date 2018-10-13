@@ -29,7 +29,6 @@ script:
   - pip install --no-cache-dir dist/*.gz
   - pip uninstall rhvoice-wrapper -y
   - pip install --no-cache-dir dist/*.whl
-  - export LD_LIBRARY_PATH=$(pip show rhvoice-wrapper-bin | grep Location | awk '{print $2}')/rhvoice_wrapper_bin/lib/
   - python -m unittest discover -v -s rhvoice_wrapper/tests/
 
 cache: pip

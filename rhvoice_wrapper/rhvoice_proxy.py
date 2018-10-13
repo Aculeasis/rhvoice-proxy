@@ -24,9 +24,9 @@ __author__ = "Olga Yakovleva <yakovleva.o.v@gmail.com>"
 __version__ = '0.7.2'
 
 import os
+import platform
 import time
 import wave
-
 from ctypes import CDLL, CFUNCTYPE, POINTER, Structure, c_char_p, c_double
 from ctypes import c_int, c_uint, c_short, c_void_p, byref, sizeof, string_at
 
@@ -130,9 +130,17 @@ class RHVoice_synth_params(Structure):
                 ("capitals_mode", c_int)]
 
 
+def _lib_selector(lib_path):
+    if lib_path is None:
+        if os.name == 'nt':
+            lib_path = 'RHVoice.dll'
+        else:
+            lib_path = 'libRHVoice.{}'.format('dylib' if platform.system().lower() == 'darwin' else 'so')
+    return lib_path if os.name == 'nt' else lib_path.encode()
+
+
 def load_tts_library(lib_path=None):
-    lib_path = lib_path or 'RHVoice.dll' if os.name == 'nt' else 'libRHVoice.so'
-    lib = CDLL(lib_path if os.name == 'nt' else lib_path.encode())
+    lib = CDLL(_lib_selector(lib_path))
     lib.RHVoice_get_version.restype = c_char_p
     lib.RHVoice_new_tts_engine.argtypes = (POINTER(RHVoice_init_params),)
     lib.RHVoice_new_tts_engine.restype = RHVoice_tts_engine

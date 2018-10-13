@@ -15,12 +15,6 @@ If the `rhvoice-wrapper-bin` is installed, its libraries and data will be used a
 
 `pip3 install rhvoice-wrapper-bin`
 
-On **Linux** you **must** set package library path for LD before run python scripts. You may set `LD_LIBRARY_PATH`, this must be works:
-```bash
-export LD_LIBRARY_PATH=$(pip3 show rhvoice-wrapper-bin | grep Location | awk '{print $2}')/rhvoice_wrapper_bin/lib/
-python3 -u <script using rhvoice_wrapper>
-```
-
 ## Documentation
 
 First create TTS object:
