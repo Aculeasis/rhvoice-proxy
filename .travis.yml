@@ -30,6 +30,11 @@ script:
   - export LD_LIBRARY_PATH=$(pip show rhvoice-wrapper-bin | grep Location | awk '{print $2}')/rhvoice_wrapper_bin/lib/
   - python -m unittest discover -v -s rhvoice_wrapper/tests/
 
+cache: pip
+
+before_cache:
+  - rm -f $HOME/.cache/pip/log/debug.log
+
 deploy:
   - provider: pypi
     user: Aculeasis
