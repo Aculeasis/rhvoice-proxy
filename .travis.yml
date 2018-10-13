@@ -24,7 +24,7 @@ before_script:
 
 script:
   - python setup.py sdist bdist_wheel
-  - pip install dist/*.gz
+  - pip install --no-cache-dir dist/*.gz
   - pip uninstall rhvoice-wrapper -y
   - pip install dist/*.whl
   - export LD_LIBRARY_PATH=$(pip show rhvoice-wrapper-bin | grep Location | awk '{print $2}')/rhvoice_wrapper_bin/lib/
