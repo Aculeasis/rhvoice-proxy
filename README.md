@@ -1,5 +1,10 @@
 ## High-level interface for RHVoice library
-[![PyPI version](https://img.shields.io/pypi/v/rhvoice-wrapper.svg)](https://pypi.org/project/rhvoice-wrapper/) [![Python versions](https://img.shields.io/pypi/pyversions/rhvoice-wrapper.svg)](https://pypi.org/project/rhvoice-wrapper/) [![PyPI - Format](https://img.shields.io/pypi/format/rhvoice-wrapper.svg)](https://pypi.org/project/rhvoice-wrapper/) [![Build Status](https://travis-ci.org/Aculeasis/rhvoice-proxy.svg?branch=master)](https://travis-ci.org/Aculeasis/rhvoice-proxy) [![Build status](https://ci.appveyor.com/api/projects/status/lan2fw4c4xl7pvya/branch/master?svg=true)](https://ci.appveyor.com/project/Aculeasis/rhvoice-proxy)
+[![API](https://img.shields.io/badge/API-0.7.2-lightgrey.svg)](https://github.com/Aculeasis/rhvoice-proxy)
+[![PyPI version](https://img.shields.io/pypi/v/rhvoice-wrapper.svg)](https://pypi.org/project/rhvoice-wrapper/)
+[![Python versions](https://img.shields.io/pypi/pyversions/rhvoice-wrapper.svg)](https://pypi.org/project/rhvoice-wrapper/)
+[![PyPI - Format](https://img.shields.io/pypi/format/rhvoice-wrapper.svg)](https://pypi.org/project/rhvoice-wrapper/)
+[![Build Status](https://travis-ci.org/Aculeasis/rhvoice-proxy.svg?branch=master)](https://travis-ci.org/Aculeasis/rhvoice-proxy)
+[![Build status](https://ci.appveyor.com/api/projects/status/lan2fw4c4xl7pvya/branch/master?svg=true)](https://ci.appveyor.com/project/Aculeasis/rhvoice-proxy)
 
 Generate speech stream from text without re-initializing engine.
 This very fast and more convenient than call RHVoice-test. Off the shelf supports `wav`, `mp3` and `opus`.
