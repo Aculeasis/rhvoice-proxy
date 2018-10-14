@@ -2,6 +2,7 @@
 
 import multiprocessing
 import os
+import platform
 import queue
 import shutil
 import subprocess
@@ -115,8 +116,16 @@ class _AudioWorker:
         self._wave = None
         self._in_out = None
 
-        self.qsize = self._stream.qsize
+        self.__empty = self._stream.empty
+        if platform.system().lower() == 'darwin':
+            # https://docs.python.org/3/library/multiprocessing.html?highlight=process#multiprocessing.Queue.qsize
+            self.qsize = self.__qsize_osx
+        else:
+            self.qsize = self._stream.qsize
         self.get = self._stream.get
+
+    def __qsize_osx(self):
+        return 0 if self.__empty() else 1
 
     def start_processing(self, format_, rate=24000):
         self._clear_stream()
@@ -153,7 +162,7 @@ class _AudioWorker:
             self._in_out.join()
 
     def _clear_stream(self):
-        while self._stream.qsize():
+        while self.qsize():
             try:
                 self._stream.get_nowait()
             except queue.Empty:

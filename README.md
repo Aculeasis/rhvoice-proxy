@@ -10,6 +10,8 @@ This very fast and more convenient than call RHVoice-test. Off the shelf support
 This package **NOT** provide [RHvoice](https://github.com/Olga-Yakovleva/RHVoice). You must be build (or install) RHVoice, languages and voices manually. In Windows you must specify the paths for work.
 
 #### rhvoice-wrapper-bin
+**Warning**! `rhvoice-wrapper-bin` not working in **macOS**, install RHVoice manually.
+
 Instead of RHVoice you may install [rhvoice-wrapper-bin](https://github.com/Aculeasis/rhvoice-wrapper-bin). This is best way for Windows. 
 If the `rhvoice-wrapper-bin` is installed, its libraries and data will be used automatically.
 
@@ -99,7 +101,7 @@ tts.join()
 - [Example usage](https://github.com/Aculeasis/rhvoice-rest/blob/master/app.py)
 
 ## Requirements
-- OS Linux or Windows
+- OS: Linux, Windows, macOS
 - RHvoice library, languages and voices
 - Python 3.4 +
 

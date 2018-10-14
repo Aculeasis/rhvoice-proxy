@@ -1,10 +1,19 @@
-language:
-  python
 
-python:
-  - '3.4'
-  - '3.5'
-  - '3.6'
+matrix:
+  include:
+  - os: linux
+    language: python
+    python: '3.4'
+  - os: linux
+    language: python
+    python: '3.5'
+  - os: linux
+    language: python
+    python: '3.6'
+  - os: osx
+    language: cpp
+    env: PYTHON=3.6.6
+
 
 sudo:
   true
@@ -13,16 +22,43 @@ git:
   depth: 1
 
 before_install:
-  - sudo apt-get update -y -qq
-  - sudo apt-get install -y -qq --no-install-recommends lame opus-tools
+  - |
+    if [ "$TRAVIS_OS_NAME" == "linux" ]; then
+      sudo apt-get update -y -qq
+      sudo apt-get -y install -y -qq --no-install-recommends lame opus-tools
+    else
+      brew update --quiet
+      brew outdated pyenv --quiet || brew upgrade pyenv --quiet
+      brew install pyenv-virtualenv --quiet
+      pyenv install $PYTHON
+      export PYENV_VERSION=$PYTHON
+      export PATH="/Users/travis/.pyenv/shims:${PATH}"
+      pyenv-virtualenv venv
+      source venv/bin/activate
+      brew install lame opus-tools --quiet
+      python -m pip install --quiet -U pip
+      pip install -U setuptools wheel
+      pip install scons
+    fi
 
 install:
-  - pip install setuptools wheel
-  - pip install rhvoice-wrapper-data
-  - pip install rhvoice-wrapper-bin
+  - |
+    if [ "$TRAVIS_OS_NAME" == "linux" ]; then
+      pip install setuptools wheel
+      pip install rhvoice-wrapper-data
+      pip install rhvoice-wrapper-bin
+    else
+      git clone https://github.com/Olga-Yakovleva/RHVoice.git
+      cd RHVoice
+      git checkout dc36179
+      scons
+      scons install
+      cd ..
+      rm -rf RHVoice
+    fi
 
 before_script:
-  - sudo locale-gen ru_RU.UTF-8
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then sudo locale-gen ru_RU.UTF-8; fi
 
 script:
   - python setup.py sdist bdist_wheel
@@ -45,7 +81,7 @@ deploy:
     skip_cleanup: true
     skip_existing: true
     on:
-      condition: "$TRAVIS_PYTHON_VERSION == 3.6"
+      condition: "$TRAVIS_PYTHON_VERSION == 3.6 && $TRAVIS_OS_NAME == linux"
       tags: true
       branch: master
 
@@ -56,6 +92,6 @@ deploy:
     file: dist/*.gz
     skip_cleanup: true
     on:
-      condition: "$TRAVIS_PYTHON_VERSION == 3.6"
+      condition: "$TRAVIS_PYTHON_VERSION == 3.6 && $TRAVIS_OS_NAME == linux"
       tags: true
       branch: master
