@@ -105,20 +105,28 @@ class Monolithic(unittest.TestCase):
                 self.assertNotEqual(f2, os.path.getsize(self.files[key]))
                 self.assertGreater(f2, 0)
 
-    def step_08_processes(self):
+    def step_080_processes_create(self):
         self.tts.join()
+        self.step_10_clear()
         self.tts = TTS(threads=3)
 
-        self.step_10_clear()
+    def step_081_processes_wav(self):
         self._test_processes_format('wav')
-        wav_size = self._processes_eq_size()
+        self.wav_size = self._processes_eq_size()
         self.step_10_clear()
-        for test in ['opus', 'mp3']:
-            if test in self.tts.formats:
-                self._test_processes_format(test)
-                lossy_size = self._processes_eq_size()
-                self.assertGreater(wav_size, lossy_size)
-                break
+
+    def step_082_processes_opus(self):
+        self._test_format('opus')
+
+    def step_083_processes_mp3(self):
+        self._test_format('mp3')
+
+    def _test_format(self, format_):
+        if format_ not in self.tts.formats:
+            return print('skip ', end='')
+        self._test_processes_format(format_)
+        lossy_size = self._processes_eq_size()
+        self.assertGreater(self.wav_size, lossy_size, 'wav must be more {}'.format(format_))
         self.step_10_clear()
 
     def _test_processes_format(self, format_, sets=None):
@@ -140,7 +148,7 @@ class Monolithic(unittest.TestCase):
         self.assertGreater(first, 0)
         for test in self.files.values():
             second = os.path.getsize(test)
-            self.assertEqual(first, second)
+            self.assertEqual(first, second, 'File sizes must be equal')
         return first
 
     def _processes_diff_size(self):
