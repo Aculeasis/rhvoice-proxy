@@ -107,6 +107,7 @@ class _InOut(threading.Thread):
 class _AudioWorker:
     BUFF_SIZE = 1024
     SAMPLE_SIZE = 2
+    POPEN_TIMEOUT = 10
 
     def __init__(self, cmd, stream_):
         self._cmd = cmd
@@ -153,7 +154,7 @@ class _AudioWorker:
             self._popen.stdin.close()
             self._popen.stderr.close()
             try:
-                self._popen.wait(5)
+                self._popen.wait(self.POPEN_TIMEOUT)
             except subprocess.TimeoutExpired:
                 pass
             self._popen.stdout.close()
@@ -280,7 +281,7 @@ class OneTTS(_BaseTTS, threading.Thread):
 
 
 class ProcessTTS(_BaseTTS, multiprocessing.Process):
-    TIMEOUT = 1
+    TIMEOUT = 3
 
     def __init__(self, *args, **kwargs):
         multiprocessing.Process.__init__(self)
