@@ -25,10 +25,10 @@ __version__ = '0.7.2'
 
 import os
 import platform
-import time
-import wave
 from ctypes import CDLL, CFUNCTYPE, POINTER, Structure, c_char_p, c_double
-from ctypes import c_int, c_uint, c_short, c_void_p, byref, sizeof, string_at
+from ctypes import c_int, c_uint, c_short, c_void_p, byref
+
+from rhvoice_wrapper.debug_callback import DebugCallback
 
 try:
     import rhvoice_wrapper_bin
@@ -168,82 +168,17 @@ def load_tts_library(lib_path=None):
 
 # --- main code ---
 
-class SpeechCallback(object):
-    sample_size = sizeof(c_short)
-
-    def __init__(self):
-        self._sample_rate = 24000
-
-    def __call__(self, samples, count, user_data):
-        """Should return False to stop synthesis"""
-        return True
-
-    def set_sample_rate(self, rate, *_):
-        self._sample_rate = rate
-        return True
-
-
-class DebugCallback(SpeechCallback):
-    def __init__(self):
-        super().__init__()
-        self.counter = 0
-        self.datasize = 0
-        self.starttime = time.clock()
-
-    def __call__(self, samples, count, user_data):
-        self.counter += 1
-        size = count * self.sample_size
-        self.datasize += size
-        kbps = self.datasize / (time.clock() - self.starttime) / 1024
-        self.debug(count, size, kbps)
-        return True
-
-    def debug(self, count, size, kbps):
-        print("speech callback %s time(s) samples: %s, size: %s, %.2f kBps" % (self.counter, count, size, kbps))
-
-
-class WaveWriteCallback(SpeechCallback):
-    """ Callback that writes sound to wave file. """
-
-    def __init__(self):
-        super().__init__()
-        self.file = None
-        self.filename = 'test.wav'
-
-    def set(self, filename):
-        self.filename = filename
-        self.close()
-
-    def _open(self):
-        if self.file:
-            self.file.close()
-        self.file = wave.open(self.filename, 'wb')
-        self.file.setnchannels(1)
-        self.file.setsampwidth(self.sample_size)
-        self.file.setframerate(self._sample_rate)
-
-    def close(self):
-        if self.file:
-            self.file.close()
-            self.file = None
-
-    def __call__(self, samples, count, user_data):
-        """Should return False to stop synthesis"""
-        if not self.file:
-            self._open()
-        self.file.writeframes(string_at(samples, count * self.sample_size))
-        return True
-
-
 def get_rhvoice_version(lib):
     return lib.RHVoice_get_version().decode('utf-8')
 
 
-def get_engine(lib, params, play_speech_cb=DebugCallback(), set_sample_rate_cb=None, resources=None, data_path=None):
+def get_engine(lib, play_speech_cb=DebugCallback(), set_sample_rate_cb=None, resources=None, data_path=None):
     """
     Load DLL and initialize speech engine - load language data
     and set callbacks.
     """
+    if isinstance(resources, str):
+        resources = [resources]
 
     callbacks = RHVoice_callbacks()
     callbacks.play_speech = RHVoice_callback_types.play_speech(play_speech_cb)
@@ -252,6 +187,7 @@ def get_engine(lib, params, play_speech_cb=DebugCallback(), set_sample_rate_cb=N
     )
 
     resource_paths = [b'/usr/local/etc/RHVoice/dicts/Russian/', ] if not resources else [k.encode() for k in resources]
+    params = RHVoice_init_params()
     # noinspection PyTypeChecker,PyCallingNonCallable
     params.resource_paths = (c_char_p * (len(resource_paths) + 1))(*(resource_paths + [None]))
     params.data_path = data_path.encode() if data_path else b'/usr/local/share/RHVoice'
@@ -259,7 +195,8 @@ def get_engine(lib, params, play_speech_cb=DebugCallback(), set_sample_rate_cb=N
     engine = lib.RHVoice_new_tts_engine(byref(params))
     if not engine:
         raise RuntimeError('RHVoice: engine initialization error')
-    return engine
+    # link for params must be present in memory while engine works
+    return engine, params
 
 
 def speak_generate(lib, text, synth_params, engine):
@@ -315,17 +252,16 @@ class Engine:
     def __init__(self, lib_path=_LIB_PATH):
         self._lib = load_tts_library(lib_path)
         self._engine = None
-        self._params = RHVoice_init_params()
         self._synth_params = None
         self.set_params(**self.SYNTHESIS_SET)
+        self.__save_me = None
 
     @property
     def version(self):
         return get_rhvoice_version(self._lib)
 
     def init(self, play_speech_cb=DebugCallback(), set_sample_rate_cb=None, resources=None, data_path=_DATA_PATH):
-        # noinspection PyTypeChecker
-        self._engine = get_engine(self._lib, self._params, play_speech_cb, set_sample_rate_cb, resources, data_path)
+        (self._engine, self.__save_me) = get_engine(self._lib, play_speech_cb, set_sample_rate_cb, resources, data_path)
 
     @property
     def voices(self):
@@ -345,4 +281,3 @@ class Engine:
         val = kw.copy()
         val.update(voice_profile=b'Anna', punctuation_list=None)
         self._synth_params = RHVoice_synth_params(**val)
-
