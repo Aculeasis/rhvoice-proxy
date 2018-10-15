@@ -10,10 +10,14 @@ matrix:
   - os: linux
     language: python
     python: '3.6'
+  - os: linux
+    language: python
+    python: '3.7-dev'
   - os: osx
     language: cpp
     env: PYTHON=3.6.6
-
+  allow_failures:
+    - python: '3.7-dev'
 
 sudo:
   true
