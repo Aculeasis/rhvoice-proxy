@@ -33,7 +33,7 @@ tts = TTS(threads=1)
 You may set options when creating or through variable environments (UPPER REGISTER). Options override variable environments. To set the default value use `None`:
 - **threads** or **THREADED**. If equal to `1`, created one thread object, if more running in multiprocessing mode and create a lot of processes. Threading mode is not race condition safe, multiprocessing mode is safe. Default `1`.
 - **force_process**: If `True`, force using multiprocessing mode. Default `False`.
-- **lib_path** or **RHVOICELIBPATH**: Path to RHVoice library. Default `libRHVoice.so` in Linux and `RHVoice.dll` in Windows.
+- **lib_path** or **RHVOICELIBPATH**: Path to RHVoice library. Default `libRHVoice.so` in Linux, `libRHVoice.dylib` in macOS and `RHVoice.dll` in Windows.
 - **data_path** or **RHVOICEDATAPATH**: Path to folder, containing voices and languages folders. Default `/usr/local/share/RHVoice`.
 - **resources** or **RHVOICERESOURCES**: List of paths, optional. I do not know what is this. Default: `['/usr/local/etc/RHVoice/dicts/Russian/']`.
 - **lame_path** or **LAMEPATH**: Path to `lame`, optional. Lame must be present for `mp3` support. Default `lame`.
