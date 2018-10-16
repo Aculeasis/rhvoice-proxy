@@ -63,7 +63,7 @@ class Monolithic(unittest.TestCase):
             self.tts.to_file(filename=target[1], text=self.msg.format(target[0]), voice=self.voice, format_=target[0])
 
     def step_031_empty_text(self):
-        with self.tts.say(text='') as read:
+        with self.tts.say(text='', format_='wav') as read:
             for chunk in read:
                 RuntimeError('No text - no audio. Return {} bytes'.format(len(chunk)))
 
