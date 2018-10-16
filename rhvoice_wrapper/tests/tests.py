@@ -56,11 +56,16 @@ class Monolithic(unittest.TestCase):
         self.engine.generate(self.msg.format('wav'))
         self.wave.close()
 
-    def step_03_tts(self):
+    def step_030_tts(self):
         self.assertGreater(len(self.tts.voices), 0)
         self.assertIn(self.voice, self.tts.voices)
         for target in [[key, val] for key, val in self.files.items() if key in self.tts.formats]:
             self.tts.to_file(filename=target[1], text=self.msg.format(target[0]), voice=self.voice, format_=target[0])
+
+    def step_031_empty_text(self):
+        with self.tts.say(text='') as read:
+            for chunk in read:
+                RuntimeError('No text - no audio. Return {} bytes'.format(len(chunk)))
 
     def step_04_wave(self):
         self.assertTrue(os.path.isfile(self.files['wav_base']))

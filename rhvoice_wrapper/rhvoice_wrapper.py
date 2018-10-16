@@ -116,6 +116,7 @@ class _AudioWorker:
         self._file = None
         self._wave = None
         self._in_out = None
+        self._starting = False
 
         self.__empty = self._stream.empty
         if platform.system().lower() == 'darwin':
@@ -141,11 +142,16 @@ class _AudioWorker:
         self._wave.setframerate(rate)
         # noinspection PyProtectedMember
         self._wave._write_header(0xFFFFFFF)  # Задаем 'бесконечную' длину файла
+        self._starting = True
 
     def processing(self, samples, count):
         self._wave.writeframesraw(string_at(samples, count * self.SAMPLE_SIZE))
 
     def end_processing(self):
+        if not self._starting:
+            # Генерации не было, надо отпустить клиента
+            self._stream.put_nowait(b'')
+            return False
         if self._wave:
             self._wave.close()
         if self._file:
@@ -161,6 +167,8 @@ class _AudioWorker:
             self._popen.kill()
         if self._in_out:
             self._in_out.join()
+        self._starting = False
+        return True
 
     def _clear_stream(self):
         while self.qsize():
@@ -200,6 +208,7 @@ class _BaseTTS:
         self._engine = None
         self._worker = _AudioWorker(cmd=self._cmd, stream_=stream_)
         self._work = True
+        self._client_here = threading.Event()
 
     def _engine_init(self):
         self._engine = rhvoice_proxy.Engine(**self._lib_path)
@@ -207,7 +216,7 @@ class _BaseTTS:
 
     def _speech_callback(self, samples, count, *_):
         self._worker.processing(samples, count)
-        return self._work
+        return self._client_here.is_set() and self._work
 
     def _sr_callback(self, rate, *_):
         self._worker.start_processing(self._format, rate)
@@ -223,7 +232,10 @@ class _BaseTTS:
         self._queue.put_nowait((text, voice, format_, sets))
         self._wait.wait(3600)
         self._wait.clear()
-        yield self._iter_me(buff)
+        try:
+            yield self._iter_me(buff)
+        finally:
+            self._client_here.clear()
 
     def to_file(self, filename, text, voice='anna', format_='mp3', sets=None):
         with open(filename, 'wb') as fp:
@@ -242,6 +254,7 @@ class _BaseTTS:
             yield chunk
 
     def _generate(self, text, voice, format_, sets):
+        self._client_here.set()
         rollback = False
         if sets:
             new_params = self._synthesis_param.copy()
@@ -250,8 +263,12 @@ class _BaseTTS:
                 self._engine.set_params(**new_params)
         self._format = format_
         self._engine.set_voice(voice)
-        self._engine.generate(text)
-        self._worker.end_processing()
+        try:
+            self._engine.generate(text)
+        except RuntimeError:
+            pass
+        if not self._worker.end_processing():
+            self._wait.set()
         if rollback:
             self._engine.set_params(**self._synthesis_param)
 
@@ -290,6 +307,7 @@ class ProcessTTS(_BaseTTS, multiprocessing.Process):
         self._queue = multiprocessing.Queue()
         self._processing = multiprocessing.Event()
         self.reading = multiprocessing.Event()
+        self._client_here = multiprocessing.Event()
         self._processing.set()
         self.reading.set()
         self.start()
@@ -458,14 +476,20 @@ class TTS:
 
     @staticmethod
     def _get_environs(kwargs):
-        names = ['lib_path', 'data_path', 'resources', 'lame_path', 'opus_path', 'threads']
-        variables = ['RHVOICELIBPATH', 'RHVOICEDATAPATH', 'RHVOICERESOURCES', 'LAMEPATH', 'OPUSENCPATH', 'THREADED']
+        params = {
+            'lib_path': 'RHVOICELIBPATH',
+            'data_path': 'RHVOICEDATAPATH',
+            'resources': 'RHVOICERESOURCES',
+            'lame_path': 'LAMEPATH',
+            'opus_path': 'OPUSENCPATH',
+            'threads': 'THREADED',
+        }
         result = {}
-        for idx in range(len(variables)):
-            if variables[idx] in os.environ:
-                result[names[idx]] = os.environ[variables[idx]]
-            if names[idx] in kwargs:
-                result[names[idx]] = kwargs[names[idx]]
+        for key, val in params.items():
+            if key in kwargs:
+                result[key] = kwargs[key]
+            elif val in os.environ:
+                result[key] = os.environ[val]
         return result
 
     @staticmethod
