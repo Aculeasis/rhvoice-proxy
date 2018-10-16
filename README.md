@@ -120,6 +120,7 @@ tts.join()
 - `TTS.cmd`: Dictionary of external calls, as it is.
 
 ## Examples
+- [Examples](https://github.com/Aculeasis/rhvoice-proxy/tree/master/rhvoice_wrapper/examples/)
 - [Example usage](https://github.com/Aculeasis/rhvoice-rest/blob/master/app.py)
 
 ## Requirements
