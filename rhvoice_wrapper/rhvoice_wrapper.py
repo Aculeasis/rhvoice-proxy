@@ -11,6 +11,7 @@ import time
 import wave
 from contextlib import contextmanager
 from ctypes import string_at
+from collections import Iterable
 
 try:
     from rhvoice_wrapper import rhvoice_proxy
@@ -209,6 +210,7 @@ class _BaseTTS:
         self._worker = _AudioWorker(cmd=self._cmd, stream_=stream_)
         self._work = True
         self._client_here = threading.Event()
+        self._still_processing = False
 
     def _engine_init(self):
         self._engine = rhvoice_proxy.Engine(**self._lib_path)
@@ -219,8 +221,10 @@ class _BaseTTS:
         return self._client_here.is_set() and self._work
 
     def _sr_callback(self, rate, *_):
-        self._worker.start_processing(self._format, rate)
-        self._wait.set()
+        if not self._still_processing:
+            self._still_processing = True
+            self._worker.start_processing(self._format, rate)
+            self._wait.set()
         return True
 
     @contextmanager
@@ -264,9 +268,14 @@ class _BaseTTS:
         self._format = format_
         self._engine.set_voice(voice)
         try:
-            self._engine.generate(text)
+            if isinstance(text, str):
+                self._engine.generate(text)
+            elif isinstance(text, Iterable):
+                for chunk in text:
+                    self._engine.generate(chunk)
         except RuntimeError:
             pass
+        self._still_processing = False
         if not self._worker.end_processing():
             self._wait.set()
         if rollback:

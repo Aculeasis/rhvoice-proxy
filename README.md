@@ -54,6 +54,23 @@ tts.to_file(filename='esperanto.ogg', text='Saluton mondo', voice='spomenka', fo
 `sets` may set as dict containing synthesis parameters as in [set_params](#set_params).
 This parameters only work for current phrase. Default `None`.
 
+#### Text as iterable object
+If `text` iterable object, all its fragments will processing successively.
+This is a good method for processing incredibly large texts.
+Remember, the generator cannot be transferred to another process. Example:
+```python
+def _text():
+    with open('wery_large_book.txt') as fp:
+        text = fp.read(5000)
+        while text:
+            yield text
+            text = fp.read(5000)
+
+def generator_audio(voice, audio_format, sets):
+    with tts.say(_text(), voice, audio_format, sets=sets) as gen:
+        for chunk in gen:
+            yield chunk
+```
 ### Other methods
 #### set_params
 Changes voice synthesizer settings:
