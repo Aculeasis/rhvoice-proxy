@@ -149,12 +149,11 @@ class Monolithic(unittest.TestCase):
         [x.join() for x in ths]
 
     def _processes_eq_size(self):
-        first = os.path.getsize(self.files['wav_base'])
-        self.assertGreater(first, 0)
-        for test in self.files.values():
-            second = os.path.getsize(test)
-            self.assertEqual(first, second, 'File sizes must be equal')
-        return first
+        all_size = [os.path.getsize(file) for file in self.files.values()]
+        self.assertGreater(all_size[0], 0, 'Empty file {}'.format(str(all_size)))
+        for test in all_size:
+            self.assertEqual(all_size[0], test, 'File sizes must be equal: {}'.format(str(all_size)))
+        return all_size[0]
 
     def _processes_diff_size(self):
         all_size = [os.path.getsize(file) for file in self.files.values()]
