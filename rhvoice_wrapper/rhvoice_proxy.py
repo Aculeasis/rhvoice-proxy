@@ -267,11 +267,18 @@ class Engine:
     def voices(self):
         return get_voices(self._lib, self._engine)
 
-    def set_voice(self, voice: str):
+    def set_voice(self, voices):
+        alt_voice = None
+        voice = None
+        if isinstance(voices, str):
+            voice = voices
+        elif isinstance(voices, (tuple, list)) and len(voices) >= 2:
+            voice = voices[0]
+            alt_voice = voices[1]
         voice = voice or 'anna'
         voice = voice.capitalize()
-        if voice != 'Anna':
-            voice = '{}+Anna'.format(voice)
+        if alt_voice:
+            voice = '{}+{}'.format(voice, alt_voice.capitalize())
         self._synth_params.voice_profile = voice.encode()
 
     def generate(self, text):
