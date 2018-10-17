@@ -7,7 +7,7 @@
 [![Build status](https://ci.appveyor.com/api/projects/status/lan2fw4c4xl7pvya/branch/master?svg=true)](https://ci.appveyor.com/project/Aculeasis/rhvoice-proxy)
 
 Generate speech stream from text without re-initializing engine.
-This very fast and more convenient than call RHVoice-test. Off the shelf supports `wav`, `mp3` and `opus`.
+This very fast and more convenient than call RHVoice-test. Off the shelf supports `wav`, `mp3`, `opus` and `flac`.
 
 ## Install
 `pip3 install rhvoice-wrapper`
@@ -40,6 +40,7 @@ Default `False` if threads == 1, else `True`.
 - **resources** or **RHVOICERESOURCES**: List of paths, optional. I do not know what is this. Default: `['/usr/local/etc/RHVoice/dicts/Russian/']`.
 - **lame_path** or **LAMEPATH**: Path to `lame`, optional. Lame must be present for `mp3` support. Default `lame`.
 - **opus_path** or **OPUSENCPATH**: Path to `opusenc`, optional. File must be present for `opus` support. Default `opusenc`.
+- **flac_path** or **FLACPATH**: Path to `flac`, optional. File must be present for `flac` support. Default `flac`.
 
 ### Usage
 Start synthesis generator and get audio data, chunk by chunk:

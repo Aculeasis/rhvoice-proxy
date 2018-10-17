@@ -126,6 +126,9 @@ class Monolithic(unittest.TestCase):
     def step_083_processes_mp3(self):
         self._test_format('mp3')
 
+    def step_084_processes_flac(self):
+        self._test_format('flac')
+
     def _test_format(self, format_):
         if format_ not in self.tts.formats:
             return print('skip ', end='')

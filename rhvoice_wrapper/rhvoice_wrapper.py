@@ -398,8 +398,11 @@ class TTS:
 
         self._threads = self._prepare_threads(envs.pop('threads', None))
         self._process = self._prepare_process(envs.pop('force_process', None), self._threads)
-
-        self._cmd = self._get_cmd(envs.pop('lame_path', None), envs.pop('opus_path', None))
+        self._cmd = self._get_cmd(
+            envs.pop('lame_path', None),
+            envs.pop('opus_path', None),
+            envs.pop('flac_path', None),
+        )
         self._formats = tuple(['wav'] + [key for key in self._cmd])
 
         self._api = rhvoice_proxy.__version__
@@ -474,6 +477,7 @@ class TTS:
             'resources': 'RHVOICERESOURCES',
             'lame_path': 'LAMEPATH',
             'opus_path': 'OPUSENCPATH',
+            'flac_path': 'FLACPATH',
             'threads': 'THREADED',
             'force_process': 'PROCESSES_MODE'
         }
@@ -515,10 +519,11 @@ class TTS:
         return threads
 
     @staticmethod
-    def _get_cmd(lame, opus):
+    def _get_cmd(lame, opus, flac):
         base_cmd = {
             'mp3': [[lame or 'lame', '-htv', '--silent', '-', '-'], 'lame'],
-            'opus': [[opus or 'opusenc', '--quiet', '--discard-comments', '--ignorelength', '-', '-'], 'opus-tools']
+            'opus': [[opus or'opusenc', '--quiet', '--discard-comments', '--ignorelength', '-', '-'], 'opus-tools'],
+            'flac': [[flac or 'flac', '--totally-silent', '--best', '--stdout', '--ignore-chunk-sizes', '-'], 'flac'],
         }
         cmd = {}
         for key, val in base_cmd.items():

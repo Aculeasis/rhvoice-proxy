@@ -34,7 +34,7 @@ before_install:
   - |
     if [ "$TRAVIS_OS_NAME" == "linux" ]; then
       sudo apt-get update -y -qq
-      sudo apt-get -y install -y -qq --no-install-recommends lame opus-tools
+      sudo apt-get -y install -y -qq --no-install-recommends lame opus-tools flac
     else
       brew update --quiet
       brew outdated pyenv --quiet || brew upgrade pyenv --quiet
@@ -44,7 +44,7 @@ before_install:
       export PATH="/Users/travis/.pyenv/shims:${PATH}"
       pyenv-virtualenv venv
       source venv/bin/activate
-      brew install lame opus-tools --quiet
+      brew install lame opus-tools flac --quiet
       python -m pip install --quiet -U pip
       pip install -U setuptools wheel
       pip install scons
