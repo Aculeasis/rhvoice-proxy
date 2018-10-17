@@ -16,13 +16,13 @@ matrix:
   - os: linux
     language: python
     python: '3.7-dev'
-    PROCESSES_MODE: False
+    env: PROCESSES_MODE=False
   - os: osx
     language: cpp
     env: PYTHON=3.6.6
   allow_failures:
     - python: '3.7-dev'
-      PROCESSES_MODE: False
+      env: PROCESSES_MODE=False
 
 sudo:
   true
