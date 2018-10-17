@@ -78,7 +78,7 @@ script:
   - python -m unittest discover -v -s rhvoice_wrapper/tests/
 
 cache:
-  - pip
+  pip: true
   ccache: true
   directories:
     - $HOME/Library/Caches/Homebrew
