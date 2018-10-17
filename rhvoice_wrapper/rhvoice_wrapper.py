@@ -11,7 +11,7 @@ import time
 import wave
 from contextlib import contextmanager
 from ctypes import string_at
-from collections import Iterable
+from collections.abc import Iterable
 
 try:
     from rhvoice_wrapper import rhvoice_proxy
@@ -198,6 +198,8 @@ class _AudioWorker:
 
 
 class _BaseTTS:
+    RELEASE_TIMEOUT = 3
+
     def __init__(self, stream_, cmd, **kwargs):
         self._cmd = cmd
         self._kwargs = kwargs.copy()
@@ -210,6 +212,9 @@ class _BaseTTS:
         self._worker = _AudioWorker(cmd=self._cmd, stream_=stream_)
         self._work = True
         self._client_here = threading.Event()
+        self._client_here.set()
+        self._generator_work = threading.Event()
+        self._generator_work.set()
         self._still_processing = False
 
     def _engine_init(self):
@@ -218,7 +223,7 @@ class _BaseTTS:
 
     def _speech_callback(self, samples, count, *_):
         self._worker.processing(samples, count)
-        return self._client_here.is_set() and self._work
+        return not self._client_here.is_set() and self._work
 
     def _sr_callback(self, rate, *_):
         if not self._still_processing:
@@ -227,8 +232,21 @@ class _BaseTTS:
             self._wait.set()
         return True
 
-    @contextmanager
-    def say(self, text, voice='anna', format_='mp3', buff=1024, sets=None):
+    def busy(self):
+        return not (self._client_here.is_set() and self._generator_work.is_set())
+
+    def _release_busy(self):
+        # Wait while client reading data
+        while not self._client_here.is_set():
+            current_size = self._worker.qsize()
+            self._client_here.wait(self.RELEASE_TIMEOUT)
+            if current_size == self._worker.qsize():
+                # Don't reading data? Client disconnected - set process as free
+                break
+        self._client_here.set()
+        self._generator_work.set()
+
+    def _client_request(self, text, voice, format_, sets):
         if format_ != 'wav' and format_ not in self._cmd:
             raise RuntimeError('Unsupported format: {}'.format(format_))
         if sets is not None and not isinstance(sets, dict):
@@ -236,21 +254,30 @@ class _BaseTTS:
         self._queue.put_nowait((text, voice, format_, sets))
         self._wait.wait(3600)
         self._wait.clear()
+
+    @contextmanager
+    def say(self, text, voice='anna', format_='mp3', buff=1024, sets=None):
+        self._client_here.clear()
         try:
+            self._client_request(text, voice, format_, sets)
             yield self._iter_me(buff)
         finally:
-            self._client_here.clear()
+            self._client_here.set()
 
     def to_file(self, filename, text, voice='anna', format_='mp3', sets=None):
-        with open(filename, 'wb') as fp:
-            with self.say(text=text, voice=voice, format_=format_, sets=sets) as read:
-                for chunk in read:
+        self._client_here.clear()
+        try:
+            with open(filename, 'wb') as fp:
+                self._client_request(text, voice, format_, sets)
+                for chunk in self._iter_me():
                     fp.write(chunk)
+        finally:
+            self._client_here.set()
 
     def set_params(self, **kwargs):
         self._queue.put_nowait(kwargs)
 
-    def _iter_me(self, buff):
+    def _iter_me(self, _=None):
         while True:
             chunk = self._worker.get()
             if not chunk:
@@ -258,7 +285,7 @@ class _BaseTTS:
             yield chunk
 
     def _generate(self, text, voice, format_, sets):
-        self._client_here.set()
+        self._generator_work.clear()
         rollback = False
         if sets:
             new_params = self._synthesis_param.copy()
@@ -280,10 +307,11 @@ class _BaseTTS:
             self._wait.set()
         if rollback:
             self._engine.set_params(**self._synthesis_param)
+        self._release_busy()
 
     def run(self):
         self._engine_init()
-        while True:
+        while self._work:
             data = self._queue.get()
             if data is None:
                 break
@@ -294,7 +322,7 @@ class _BaseTTS:
                 self._generate(*data)
 
 
-class OneTTS(_BaseTTS, threading.Thread):
+class ThreadTTS(_BaseTTS, threading.Thread):
     def __init__(self, *args, **kwargs):
         threading.Thread.__init__(self)
         _BaseTTS.__init__(self, queue.Queue(), *args, **kwargs)
@@ -307,50 +335,16 @@ class OneTTS(_BaseTTS, threading.Thread):
 
 
 class ProcessTTS(_BaseTTS, multiprocessing.Process):
-    TIMEOUT = 3
-
     def __init__(self, *args, **kwargs):
         multiprocessing.Process.__init__(self)
         _BaseTTS.__init__(self, multiprocessing.Queue(), *args, **kwargs)
         self._wait = multiprocessing.Event()
         self._queue = multiprocessing.Queue()
-        self._processing = multiprocessing.Event()
-        self.reading = multiprocessing.Event()
         self._client_here = multiprocessing.Event()
-        self._processing.set()
-        self.reading.set()
+        self._client_here.set()
+        self._generator_work = multiprocessing.Event()
+        self._generator_work.set()
         self.start()
-
-    def busy(self):
-        return not (self._processing.is_set() and self.reading.is_set())
-
-    def set_busy(self):
-        self._processing.clear()
-        self.reading.clear()
-
-    def _clear_busy(self):
-        self.reading.set()
-        self._processing.set()
-
-    def _generate(self, *args):
-        try:
-            super()._generate(*args)
-        finally:
-            # Wait while client reading data
-            while not self.reading.is_set():
-                current_size = self._worker.qsize()
-                self.reading.wait(self.TIMEOUT)
-                if current_size == self._worker.qsize():
-                    # Don't reading data? Client disconnected - set process as free
-                    break
-            self._clear_busy()
-
-    def _iter_me(self, buff):
-        try:
-            for chunk in super()._iter_me(buff):
-                yield chunk
-        finally:
-            self.reading.set()
 
     def join(self, timeout=None):
         self._work = False
@@ -361,14 +355,11 @@ class ProcessTTS(_BaseTTS, multiprocessing.Process):
 class MultiTTS:
     TIMEOUT = 30
 
-    def __init__(self, count, *args, **kwargs):
-        self._workers = tuple([ProcessTTS(*args, **kwargs) for _ in range(count)])
+    def __init__(self, count, processes, *args, **kwargs):
+        worker = ProcessTTS if processes else ThreadTTS
+        self._workers = tuple([worker(*args, **kwargs) for _ in range(count)])
         self._lock = threading.Lock()
         self._work = True
-        self._nowait = False
-
-    def nowait(self, val: bool):
-        self._nowait = val
 
     def to_file(self, filename, text, voice='anna', format_='mp3', sets=None):
         return self._caller().to_file(filename, text, voice, format_, sets)
@@ -383,9 +374,6 @@ class MultiTTS:
             while True:
                 for worker in self._workers:
                     if not worker.busy():
-                        worker.set_busy()
-                        if self._nowait:
-                            worker.reading.set()
                         return worker
                 time.sleep(0.05)
                 if time.perf_counter() > end_time:
@@ -401,7 +389,7 @@ class MultiTTS:
         if not self._work:
             return
         self._work = False
-        _ = [x.join() for x in self._workers]
+        [x.join() for x in self._workers]
 
 
 class TTS:
@@ -409,7 +397,7 @@ class TTS:
         envs = self._get_environs(kwargs)
 
         self._threads = self._prepare_threads(envs.pop('threads', None))
-        self._process = envs.pop('force_process', False) or self._threads > 1
+        self._process = self._prepare_process(envs.pop('force_process', None), self._threads)
 
         self._cmd = self._get_cmd(envs.pop('lame_path', None), envs.pop('opus_path', None))
         self._formats = tuple(['wav'] + [key for key in self._cmd])
@@ -427,12 +415,7 @@ class TTS:
         self._synth_set = test.SYNTHESIS_SET.copy()
         del test
 
-        if self._process:
-            tts = MultiTTS(self._threads, self._cmd, **envs)
-            self._burn = tts.nowait
-        else:
-            tts = OneTTS(self._cmd, **envs)
-            self._burn = None
+        tts = MultiTTS(self._threads, self._process, self._cmd, **envs)
 
         self.say = tts.say
         self.to_file = tts.to_file
@@ -492,6 +475,7 @@ class TTS:
             'lame_path': 'LAMEPATH',
             'opus_path': 'OPUSENCPATH',
             'threads': 'THREADED',
+            'force_process': 'PROCESSES_MODE'
         }
         result = {}
         for key, val in params.items():
@@ -500,6 +484,18 @@ class TTS:
             elif val in os.environ:
                 result[key] = os.environ[val]
         return result
+
+    @staticmethod
+    def _prepare_process(force_process, threads):
+        if isinstance(force_process, str):
+            force_process = force_process.lower()
+            if force_process in ['true', 'yes', 'enable']:
+                return True
+            elif force_process in ['false', 'no', 'disable']:
+                return False
+        elif isinstance(force_process, bool):
+            return force_process
+        return threads > 1
 
     @staticmethod
     def _prepare_threads(threads):
@@ -536,31 +532,49 @@ class TTS:
         # PPS - Phrases Per Second
         # i7-8700k: 80.3 PPS
         # OrangePi Prime: 4.4 PPS
-        if self._burn is None:
-            return 'Only for multiprocessing mode'
-        self._burn(True)
         text = 'Так себе, вызовы сэй будут блокировать выполнение'
-        for _ in range(self.thread_count):
-            with self.say(text, format_='wav') as fp:
-                next(fp, None)
-        time.sleep(2)
+        workers = tuple([_Benchmarks(text, self.say) for _ in range(self.thread_count)])
         yield 'Start...'
-        count = 0
         test_time = 30
-        end_time = time.perf_counter() + test_time
         try:
             while True:
-                with self.say(text, format_='wav') as fp:
-                    next(fp, None)
-                count += 1
-                if end_time < time.perf_counter():
-                    work_time = time.perf_counter() - (end_time - test_time)
-                    pps = count / work_time
-                    yield 'PPS: {:.4f} (run {:.3f} sec)'.format(pps, work_time)
-                    end_time = time.perf_counter() + test_time
-                    count = 0
+                work_time = time.perf_counter()
+                time.sleep(test_time)
+                count = sum([w.count for w in workers])
+                work_time = time.perf_counter() - work_time
+                pps = count / work_time
+                yield 'PPS: {:.4f} (run {:.3f} sec)'.format(pps, work_time)
         finally:
-            self._burn(False)
+            [w.join() for w in workers]
+
+
+class _Benchmarks(threading.Thread):
+    def __init__(self, text, say):
+        super().__init__()
+        self._text = text
+        self._say = say
+        self._count = 0
+        self._work = True
+        self.start()
+
+    def run(self):
+        while self._work:
+            with self._say(text=self._text, format_='wav') as fp:
+                for _ in fp:
+                    pass
+            self._count += 1
+
+    @property
+    def count(self):
+        try:
+            return self._count
+        finally:
+            self._count = 0
+
+    def join(self, timeout=None):
+        if self._work:
+            self._work = False
+            super().join(timeout)
 
 
 def main():

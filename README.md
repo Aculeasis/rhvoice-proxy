@@ -31,8 +31,10 @@ from rhvoice_wrapper import TTS
 tts = TTS(threads=1)
 ```
 You may set options when creating or through variable environments (UPPER REGISTER). Options override variable environments. To set the default value use `None`:
-- **threads** or **THREADED**. If equal to `1`, created one thread object, if more running in multiprocessing mode and create a lot of processes. Threading mode is not race condition safe, multiprocessing mode is safe. Default `1`.
-- **force_process**: If `True`, force using multiprocessing mode. Default `False`.
+- **threads** or **THREADED**. If equal to `1`, created one thread object, if more running in multiprocessing mode and create a lot of processes. Default `1`.
+- **force_process** or **PROCESSES_MODE**: If `True` engines run in multiprocessing mode, if `False` in threads mode.
+Default `False` if threads == 1, else `True`.
+**Threads mode and threads > 1 causes a segmentation faults or may return corrupted data**
 - **lib_path** or **RHVOICELIBPATH**: Path to RHVoice library. Default `libRHVoice.so` in Linux, `libRHVoice.dylib` in macOS and `RHVoice.dll` in Windows.
 - **data_path** or **RHVOICEDATAPATH**: Path to folder, containing voices and languages folders. Default `/usr/local/share/RHVoice`.
 - **resources** or **RHVOICERESOURCES**: List of paths, optional. I do not know what is this. Default: `['/usr/local/etc/RHVoice/dicts/Russian/']`.

@@ -11,10 +11,15 @@ environment:
   - PYTHON: C:\Python36-x64
     DEPLOY: true
   - PYTHON: C:\Python37
+    PROCESSES_MODE: False
   - PYTHON: C:\Python37-x64
+    PROCESSES_MODE: False
 
 matrix:
   fast_finish: true
+  allow_failures:
+    - PYTHON: C:\Python37
+    - PYTHON: C:\Python37-x64
 
 clone_depth: 1
 

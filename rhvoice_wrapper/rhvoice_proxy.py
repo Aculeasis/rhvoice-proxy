@@ -28,7 +28,10 @@ import platform
 from ctypes import CDLL, CFUNCTYPE, POINTER, Structure, c_char_p, c_double
 from ctypes import c_int, c_uint, c_short, c_void_p, byref
 
-from rhvoice_wrapper.debug_callback import DebugCallback
+try:
+    from rhvoice_wrapper.debug_callback import DebugCallback
+except ImportError:
+    from debug_callback import DebugCallback
 
 try:
     import rhvoice_wrapper_bin
