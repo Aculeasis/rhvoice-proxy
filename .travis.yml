@@ -37,6 +37,7 @@ before_install:
       sudo apt-get -y install -y -qq --no-install-recommends lame opus-tools
     else
       brew update --quiet
+      brew install ccache
       brew outdated pyenv --quiet || brew upgrade pyenv --quiet
       brew install pyenv-virtualenv --quiet
       pyenv install $PYTHON
@@ -76,7 +77,11 @@ script:
   - pip install --no-cache-dir dist/*.whl
   - python -m unittest discover -v -s rhvoice_wrapper/tests/
 
-cache: pip
+cache:
+  - pip
+  ccache: true
+  directories:
+    - $HOME/Library/Caches/Homebrew
 
 before_cache:
   - rm -f $HOME/.cache/pip/log/debug.log
