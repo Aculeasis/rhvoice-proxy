@@ -106,6 +106,7 @@ class _AudioWorker:
     BUFF_SIZE = 1024
     SAMPLE_SIZE = 2
     POPEN_TIMEOUT = 10
+    JOIN_TIMEOUT = 10
 
     def __init__(self, cmd, stream_):
         self._cmd = cmd
@@ -160,10 +161,11 @@ class _AudioWorker:
                 self._popen.wait(self.POPEN_TIMEOUT)
             except subprocess.TimeoutExpired:
                 pass
+        if self._in_out:
+            self._in_out.join(timeout=self.JOIN_TIMEOUT)
+        if self._popen:
             self._popen.stdout.close()
             self._popen.kill()
-        if self._in_out:
-            self._in_out.join()
         self._starting = False
         return True
 
