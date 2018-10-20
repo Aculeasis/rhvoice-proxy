@@ -7,7 +7,7 @@ import unittest
 
 from rhvoice_wrapper import TTS
 from rhvoice_wrapper import rhvoice_proxy
-from rhvoice_wrapper.debug_callback import WaveWriteCallback
+from rhvoice_wrapper.tests.debug_callback import WaveWriteCallback
 
 
 class Monolithic(unittest.TestCase):
@@ -28,7 +28,7 @@ class Monolithic(unittest.TestCase):
 
         self.engine = rhvoice_proxy.Engine()
         self.wave = WaveWriteCallback()
-        self.engine.init(self.wave)
+        self.engine.init(self.wave, self.wave.set_sample_rate)
         self.tts = TTS()
 
     def step_01_info(self):

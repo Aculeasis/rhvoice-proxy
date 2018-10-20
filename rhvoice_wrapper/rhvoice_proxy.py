@@ -29,11 +29,6 @@ from ctypes import CDLL, CFUNCTYPE, POINTER, Structure, c_char_p, c_double
 from ctypes import c_int, c_uint, c_short, c_void_p, byref
 
 try:
-    from rhvoice_wrapper.debug_callback import DebugCallback
-except ImportError:
-    from debug_callback import DebugCallback
-
-try:
     import rhvoice_wrapper_bin
     _LIB_PATH = rhvoice_wrapper_bin.lib_path
     _DATA_PATH = rhvoice_wrapper_bin.data_path
@@ -175,7 +170,7 @@ def get_rhvoice_version(lib):
     return lib.RHVoice_get_version().decode('utf-8')
 
 
-def get_engine(lib, play_speech_cb=DebugCallback(), set_sample_rate_cb=None, resources=None, data_path=None):
+def get_engine(lib, play_speech_cb, set_sample_rate_cb, resources=None, data_path=None):
     """
     Load DLL and initialize speech engine - load language data
     and set callbacks.
@@ -185,9 +180,7 @@ def get_engine(lib, play_speech_cb=DebugCallback(), set_sample_rate_cb=None, res
 
     callbacks = RHVoice_callbacks()
     callbacks.play_speech = RHVoice_callback_types.play_speech(play_speech_cb)
-    callbacks.set_sample_rate = RHVoice_callback_types.set_sample_rate(
-        set_sample_rate_cb or play_speech_cb.set_sample_rate
-    )
+    callbacks.set_sample_rate = RHVoice_callback_types.set_sample_rate(set_sample_rate_cb)
 
     resource_paths = [b'/usr/local/etc/RHVoice/dicts/Russian/', ] if not resources else [k.encode() for k in resources]
     params = RHVoice_init_params()
@@ -263,7 +256,7 @@ class Engine:
     def version(self):
         return get_rhvoice_version(self._lib)
 
-    def init(self, play_speech_cb=DebugCallback(), set_sample_rate_cb=None, resources=None, data_path=_DATA_PATH):
+    def init(self, play_speech_cb, set_sample_rate_cb, resources=None, data_path=_DATA_PATH):
         (self._engine, self.__save_me) = get_engine(self._lib, play_speech_cb, set_sample_rate_cb, resources, data_path)
 
     @property

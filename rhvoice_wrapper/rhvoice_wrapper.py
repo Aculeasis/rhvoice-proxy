@@ -9,14 +9,11 @@ import subprocess
 import threading
 import time
 import wave
+from collections.abc import Iterable
 from contextlib import contextmanager
 from ctypes import string_at
-from collections.abc import Iterable
 
-try:
-    from rhvoice_wrapper import rhvoice_proxy
-except ImportError:
-    import rhvoice_proxy
+from rhvoice_wrapper import rhvoice_proxy
 
 
 def prepare_synthesis_params(old: dict, data: dict):
@@ -394,6 +391,9 @@ class MultiTTS:
 
 class TTS:
     def __init__(self, **kwargs):
+        def dummy(*_):
+            return True
+
         envs = self._get_environs(kwargs)
 
         self._threads = self._prepare_threads(envs.pop('threads', None))
@@ -413,7 +413,7 @@ class TTS:
         self._version = test.version
         if self._api != self._version:
             print('Warning! API version ({}) different of library version ({})'.format(self._api, self._version))
-        test.init(**envs2)
+        test.init(play_speech_cb=dummy, set_sample_rate_cb=dummy, **envs2)
         self._voices = test.voices
         self._synth_set = test.SYNTHESIS_SET.copy()
         del test
@@ -532,70 +532,3 @@ class TTS:
             else:
                 print('Disable {} support - {} not found. Use apt install {}'.format(key, val[0][0], val[1]))
         return cmd
-
-    def benchmarks(self):
-        # PPS - Phrases Per Second
-        # i7-8700k: 80.3 PPS
-        # OrangePi Prime: 4.4 PPS
-        text = 'Так себе, вызовы сэй будут блокировать выполнение'
-        workers = tuple([_Benchmarks(text, self.say) for _ in range(self.thread_count)])
-        yield 'Start...'
-        test_time = 30
-        try:
-            while True:
-                work_time = time.perf_counter()
-                time.sleep(test_time)
-                count = sum([w.count for w in workers])
-                work_time = time.perf_counter() - work_time
-                pps = count / work_time
-                yield 'PPS: {:.4f} (run {:.3f} sec)'.format(pps, work_time)
-        finally:
-            [w.join() for w in workers]
-
-
-class _Benchmarks(threading.Thread):
-    def __init__(self, text, say):
-        super().__init__()
-        self._text = text
-        self._say = say
-        self._count = 0
-        self._work = True
-        self.start()
-
-    def run(self):
-        while self._work:
-            with self._say(text=self._text, format_='wav') as fp:
-                for _ in fp:
-                    pass
-            self._count += 1
-
-    @property
-    def count(self):
-        try:
-            return self._count
-        finally:
-            self._count = 0
-
-    def join(self, timeout=None):
-        if self._work:
-            self._work = False
-            super().join(timeout)
-
-
-def main():
-    tts = TTS(threads=int(multiprocessing.cpu_count() * 1.5))
-    print('Lib version: {}'.format(tts.lib_version))
-    print('Threads: {}'.format(tts.thread_count))
-    print('Formats: {}'.format(tts.formats))
-    print('Voices: {}'.format(tts.voices))
-    max_ = 5
-    for result in tts.benchmarks():
-        print(result)
-        max_ -= 1
-        if not max_:
-            break
-    tts.join()
-
-
-if __name__ == '__main__':
-    main()
