@@ -156,7 +156,6 @@ class _AudioWorker:
             self._file.end()
         if self._popen:
             self._popen.stdin.close()
-            self._popen.stderr.close()
             try:
                 self._popen.wait(self.POPEN_TIMEOUT)
             except subprocess.TimeoutExpired:
@@ -178,7 +177,6 @@ class _AudioWorker:
     def _create_popen(self, format_):
         self._popen = subprocess.Popen(
             self._cmd.get(format_),
-            stderr=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stdin=subprocess.PIPE
         )
