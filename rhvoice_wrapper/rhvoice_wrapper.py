@@ -229,6 +229,9 @@ class _BaseTTS:
             self._wait.set()
         return True
 
+    def client_here(self):
+        self._client_here.clear()
+
     def busy(self):
         return not (self._client_here.is_set() and self._generator_work.is_set())
 
@@ -254,7 +257,6 @@ class _BaseTTS:
 
     @contextmanager
     def say(self, text, voice='anna', format_='mp3', buff=1024, sets=None):
-        self._client_here.clear()
         try:
             self._client_request(text, voice, format_, sets)
             yield self._iter_me(buff)
@@ -262,7 +264,6 @@ class _BaseTTS:
             self._client_here.set()
 
     def to_file(self, filename, text, voice='anna', format_='mp3', sets=None):
-        self._client_here.clear()
         try:
             with open(filename, 'wb') as fp:
                 self._client_request(text, voice, format_, sets)
@@ -371,6 +372,7 @@ class MultiTTS:
             while True:
                 for worker in self._workers:
                     if not worker.busy():
+                        worker.client_here()
                         return worker
                 time.sleep(0.05)
                 if time.perf_counter() > end_time:
