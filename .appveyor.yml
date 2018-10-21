@@ -27,13 +27,16 @@ build: off
 
 init:
   - set PATH=%PYTHON%;%PYTHON%\Scripts;%PATH%
-  # - set OPUSENCPATH=c:\opus\opusenc.exe
+  - set OPUSENCPATH=%CD%\opus\opusenc.exe
+  - set FLACPATH=%CD%\flac\flac-1.3.2-win\win32\flac.exe
 
 install:
   - python -m pip install --upgrade wheel
   - pip install rhvoice-wrapper-bin --only-binary rhvoice-wrapper-bin
-  # - appveyor DownloadFile "https://archive.mozilla.org/pub/opus/win32/opus-tools-0.2-win32.zip" -FileName opus.zip
-  # - 7z e opus.zip -oc:\opus
+  - appveyor DownloadFile "https://archive.mozilla.org/pub/opus/win32/opus-tools-0.2-win32.zip" -FileName opusz.zip
+  - 7z e opusz.zip -oopus
+  - appveyor DownloadFile "https://ftp.osuosl.org/pub/xiph/releases/flac/flac-1.3.2-win.zip" -FileName flacz.zip
+  - 7z x flacz.zip -oflac
   - python setup.py bdist_wheel bdist_wininst --dist-dir=github
   - appveyor AddMessage "Install success"
 
