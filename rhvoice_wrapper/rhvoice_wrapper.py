@@ -524,7 +524,7 @@ class TTS:
     def _get_cmd(lame, opus, flac):
         base_cmd = {
             'mp3': [[lame or 'lame', '-htv', '--silent', '-', '-'], 'lame'],
-            'opus': [[opus or'opusenc', '--quiet', '--discard-comments', '--ignorelength', '-', '-'], 'opus-tools'],
+            'opus': [[opus or 'opusenc', '--quiet', '--discard-comments', '--ignorelength', '-', '-'], 'opus-tools'],
             'flac': [[flac or 'flac', '--totally-silent', '--best', '--stdout', '--ignore-chunk-sizes', '-'], 'flac'],
         }
         cmd = {}
