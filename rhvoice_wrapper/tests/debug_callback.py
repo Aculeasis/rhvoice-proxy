@@ -3,6 +3,7 @@
 import time
 import wave
 from ctypes import c_short, sizeof, string_at
+import io
 
 
 class SpeechCallback(object):
@@ -63,6 +64,35 @@ class WaveWriteCallback(SpeechCallback):
         if self.file:
             self.file.close()
             self.file = None
+
+    def __call__(self, samples, count, user_data):
+        """Should return False to stop synthesis"""
+        if not self.file:
+            self._open()
+        self.file.writeframes(string_at(samples, count * self.sample_size))
+        return True
+
+
+class WaveWriteFpCallback(SpeechCallback):
+    """ Callback that writes sound to wave file. """
+
+    def __init__(self):
+        super().__init__()
+        self.file = None
+        self._io = io.BytesIO()
+
+    def _open(self):
+        self.file = wave.Wave_write(self._io)
+        self.file.setnchannels(1)
+        self.file.setsampwidth(self.sample_size)
+        self.file.setframerate(self._sample_rate)
+
+    @property
+    def size(self):
+        self.file.close()
+        self._io.flush()
+        self._io.seek(0, io.SEEK_END)
+        return self._io.tell()
 
     def __call__(self, samples, count, user_data):
         """Should return False to stop synthesis"""

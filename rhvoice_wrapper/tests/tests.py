@@ -1,33 +1,60 @@
 #!/usr/bin/env python3
 
-import os
 import threading
 import traceback
 import unittest
 
 from rhvoice_wrapper import TTS
 from rhvoice_wrapper import rhvoice_proxy
-from rhvoice_wrapper.tests.debug_callback import WaveWriteCallback
+from rhvoice_wrapper.tests.debug_callback import WaveWriteFpCallback
+
+
+def say_size(say, *args, **kwargs):
+    size = 0
+    with say(*args, **kwargs) as rd:
+        for chunk in rd:
+            size += len(chunk)
+    return size
+
+
+class ThChecker(threading.Thread):
+    def __init__(self, say, kwargs):
+        super().__init__()
+        self._say = say
+        self._kw = kwargs
+        self._size = None
+        self.start()
+
+    def run(self):
+        self._size = say_size(self._say, **self._kw)
+
+    @property
+    def size(self):
+        self.join()
+        return self._size
 
 
 class Monolithic(unittest.TestCase):
     def step_00_init(self):
         self.files = {
-            'wav_base': 'wav1.wav',
-            'wav': 'wav2.wav',
-            'mp3': 'mp3.mp3',
-            'opus': 'opus.ogg',
+            'wav_base': 'wav1',
+            'wav': 'wav2',
+            'mp3': 'mp3',
+            'opus': 'opus',
+            'flac': 'flac'
         }
         self.files2 = {
-            'wav': 'wav22.wav',
-            'mp3': 'mp32.mp3',
-            'opus': 'opus2.ogg',
+            'wav': 'wav_2',
+            'mp3': 'mp3_2',
+            'opus': 'opus_2',
+            'flac': 'flac_2'
         }
+        self.sizes = {}
         self.msg = 'Я умею сохранять свой голос в {}'
         self.voice = 'anna'
 
         self.engine = rhvoice_proxy.Engine()
-        self.wave = WaveWriteCallback()
+        self.wave = WaveWriteFpCallback()
         self.engine.init(self.wave, self.wave.set_sample_rate)
         self.tts = TTS()
 
@@ -46,50 +73,50 @@ class Monolithic(unittest.TestCase):
             voice = voices[voice_order[i]]
             print('  {name:10}  {lang:2}    {gender:2} '.format(**voice))
         print('Number of voices: {}'.format(len(voices)))
-        print('Formats: {}'.format(', '.join(self.tts.formats)))
+        print('Formats: {} ... '.format(', '.join(self.tts.formats)), end='')
 
     def step_02_engine(self):
         self.assertGreater(len(self.engine.voices), 0)
         self.assertIn(self.voice, self.engine.voices)
         self.engine.set_voice(self.voice)
-        self.wave.set(self.files['wav_base'])
+
         self.engine.generate(self.msg.format('wav'))
-        self.wave.close()
+        self.sizes[self.files['wav_base']] = self.wave.size
+        del self.wave
 
     def step_030_tts(self):
         self.assertGreater(len(self.tts.voices), 0)
         self.assertIn(self.voice, self.tts.voices)
         for target in [[key, val] for key, val in self.files.items() if key in self.tts.formats]:
-            self.tts.to_file(filename=target[1], text=self.msg.format(target[0]), voice=self.voice, format_=target[0])
+            self.sizes[target[1]] = say_size(
+                self.tts.say,
+                text=self.msg.format(target[0]),
+                voice=self.voice,
+                format_=target[0]
+            )
 
     def step_031_empty_text(self):
-        with self.tts.say(text='', format_='wav') as read:
-            for chunk in read:
-                RuntimeError('No text - no audio. Return {} bytes'.format(len(chunk)))
+        size = say_size(self.tts.say, text='', format_='wav')
+        self.assertEqual(size, 0, 'No text - no audio. Return {} bytes'.format(size))
 
     def step_04_wave(self):
-        self.assertTrue(os.path.isfile(self.files['wav_base']))
-        self.assertTrue(os.path.isfile(self.files['wav']))
+        self.assertTrue(self.files['wav_base'] in self.sizes)
+        self.assertTrue(self.files['wav'] in self.sizes)
 
-        wav1 = os.path.getsize(self.files['wav_base'])
-        wav2 = os.path.getsize(self.files['wav'])
-        self.assertEqual(wav1, wav2)
-        self.assertGreater(wav1, 0)
+        self.assertEqual(self.sizes[self.files['wav_base']], self.sizes[self.files['wav']])
+        self.assertGreater(self.sizes[self.files['wav']], 0)
 
     def step_050_sets_recovery(self):
         sets = {'absolute_rate': 0.5}
-        self.tts.to_file(filename=self.files['wav_base'], text=self.msg, voice=self.voice, format_='wav', sets=sets)
-        self.tts.to_file(filename=self.files['wav'], text=self.msg, voice=self.voice, format_='wav')
-
-        wav1 = os.path.getsize(self.files['wav_base'])
-        wav2 = os.path.getsize(self.files['wav'])
+        wav1 = say_size(self.tts.say, text=self.msg, voice=self.voice, format_='wav', sets=sets)
+        wav2 = say_size(self.tts.say, text=self.msg, voice=self.voice, format_='wav')
 
         self.assertNotEqual(wav1, wav2)
 
     def step_05_other_files(self):
         for target in [val for key, val in self.files.items() if key not in ['wav_base', 'wav']]:
-            if os.path.isfile(target):
-                self.assertGreater(os.path.getsize(target), 0)
+            if target in self.sizes:
+                self.assertGreater(self.sizes[target], 0)
 
     def step_06_gen_files2(self):
         self.assertTrue(self.tts.set_params(absolute_rate=1, absolute_pitch=1))
@@ -101,24 +128,30 @@ class Monolithic(unittest.TestCase):
         self.assertIsNone(self.tts.get_params('always missing'))
 
         for target in [[key, val] for key, val in self.files2.items() if key in self.tts.formats]:
-            self.tts.to_file(filename=target[1], text=self.msg.format(target[0]), voice=self.voice, format_=target[0])
+            self.sizes[target[1]] = say_size(
+                self.tts.say,
+                text=self.msg.format(target[0]),
+                voice=self.voice,
+                format_=target[0]
+            )
 
     def step_07_compare_1_2(self):
         for key, val in self.files2.items():
-            if os.path.isfile(val):
-                f2 = os.path.getsize(val)
-                self.assertNotEqual(f2, os.path.getsize(self.files[key]))
-                self.assertGreater(f2, 0)
+            if val in self.sizes:
+                s1 = self.sizes[self.files[key]]
+                s2 = self.sizes[val]
+                self.assertGreater(s1, s2)
+                self.assertGreater(s2, 0)
 
     def step_080_processes_create(self):
         self.tts.join()
-        self.step_10_clear()
+        self.clear_sizes()
         self.tts = TTS(threads=3)
 
     def step_081_processes_wav(self):
         self._test_processes_format('wav')
         self.wav_size = self._processes_eq_size()
-        self.step_10_clear()
+        self.clear_sizes()
 
     def step_082_processes_opus(self):
         self._test_format('opus')
@@ -135,47 +168,44 @@ class Monolithic(unittest.TestCase):
         self._test_processes_format(format_)
         lossy_size = self._processes_eq_size()
         self.assertGreater(self.wav_size, lossy_size, 'wav must be more {}'.format(format_))
-        self.step_10_clear()
+        self.clear_sizes()
 
     def _test_processes_format(self, format_, sets=None):
-        ths = []
+        ths = {}
         pos = 0
         for x in self.files.values():
             current_set = None
             if sets:
                 current_set = sets[pos]
                 pos += 1
-            kwargs = {'filename': x, 'text': self.msg, 'voice': self.voice, 'format_': format_, 'sets': current_set}
-            th = threading.Thread(target=self.tts.to_file, kwargs=kwargs)
-            th.start()
-            ths.append(th)
-        [x.join() for x in ths]
+            kwargs = {'text': self.msg, 'voice': self.voice, 'format_': format_, 'sets': current_set}
+            ths[x] = ThChecker(self.tts.say, kwargs)
+        for key, val in ths.items():
+            self.sizes[key] = val.size
 
     def _processes_eq_size(self):
-        all_size = [os.path.getsize(file) for file in self.files.values()]
+        all_size = [self.sizes[file] for file in self.files.values()]
         self.assertGreater(all_size[0], 0, 'Empty file {}'.format(str(all_size)))
         for test in all_size:
-            self.assertEqual(all_size[0], test, 'File sizes must be equal: {}'.format(str(all_size)))
+            self.assertEqual(all_size[0], test, 'File sizes must be equal: {}'.format(all_size))
         return all_size[0]
 
     def _processes_diff_size(self):
-        all_size = [os.path.getsize(file) for file in self.files.values()]
+        all_size = [self.sizes[file] for file in self.files.values()]
         counts = len(all_size)
         for one in range(counts):
             for two in range(counts):
                 if one == two:
                     continue
-                self.assertNotEqual(all_size[one], all_size[two])
+                self.assertNotEqual(all_size[one], all_size[two], 'File sizes must be not equal: {}'.format(all_size))
 
     def step_09_test_sets(self):
-        volumes = [{'absolute_rate': x/1.2-1} for x in range(len(self.files))]
+        volumes = [{'absolute_rate': x * 0.01} for x in range(-100, 101, 200 // (len(self.files) - 1))]
         self._test_processes_format('wav', volumes)
         self._processes_diff_size()
 
-    def step_10_clear(self):
-        for val in [x for x in self.files.values()] + [x for x in self.files2.values()]:
-            if os.path.isfile(val):
-                os.remove(val)
+    def clear_sizes(self):
+        self.sizes = {}
 
     def step_11_join(self):
         self.tts.join()
@@ -195,7 +225,6 @@ class Monolithic(unittest.TestCase):
             except Exception as e:
                 print('FAILED')
                 traceback.print_exc()
-                self.step_10_clear()
                 self.step_11_join()
                 self.fail('{} failed ({}: {})'.format(step, type(e), e))
 
