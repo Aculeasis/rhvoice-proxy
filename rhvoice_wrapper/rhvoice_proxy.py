@@ -182,7 +182,7 @@ def get_engine(lib, play_speech_cb, set_sample_rate_cb, resources=None, data_pat
     callbacks.play_speech = RHVoice_callback_types.play_speech(play_speech_cb)
     callbacks.set_sample_rate = RHVoice_callback_types.set_sample_rate(set_sample_rate_cb)
 
-    resource_paths = [b'/usr/local/etc/RHVoice/dicts/Russian/', ] if not resources else [k.encode() for k in resources]
+    resource_paths = [] if not resources else [k.encode() for k in resources]
     params = RHVoice_init_params()
     # noinspection PyTypeChecker,PyCallingNonCallable
     params.resource_paths = (c_char_p * (len(resource_paths) + 1))(*(resource_paths + [None]))

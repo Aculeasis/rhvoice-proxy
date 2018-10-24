@@ -56,7 +56,7 @@ class Monolithic(unittest.TestCase):
         self.engine = rhvoice_proxy.Engine()
         self.wave = WaveWriteFpCallback()
         self.engine.init(self.wave, self.wave.set_sample_rate)
-        self.tts = TTS()
+        self.tts = TTS(quiet=True)
 
     def step_01_info(self):
         print()
@@ -146,7 +146,7 @@ class Monolithic(unittest.TestCase):
     def step_080_processes_create(self):
         self.tts.join()
         self.clear_sizes()
-        self.tts = TTS(threads=3)
+        self.tts = TTS(threads=3, quiet=True)
 
     def step_081_processes_wav(self):
         self._test_processes_format('wav')

@@ -37,10 +37,11 @@ Default `False` if threads == 1, else `True`.
 **Threads mode and threads > 1 causes a segmentation faults or may return corrupted data**
 - **lib_path** or **RHVOICELIBPATH**: Path to RHVoice library. Default `libRHVoice.so` in Linux, `libRHVoice.dylib` in macOS and `RHVoice.dll` in Windows.
 - **data_path** or **RHVOICEDATAPATH**: Path to folder, containing voices and languages folders. Default `/usr/local/share/RHVoice`.
-- **resources** or **RHVOICERESOURCES**: List of paths, optional. I do not know what is this. Default: `['/usr/local/etc/RHVoice/dicts/Russian/']`.
+- **resources** or **RHVOICERESOURCES**: A list of paths to language and voice data. It should be used when it is not possible to collect all the data in one place. Default `[]`.
 - **lame_path** or **LAMEPATH**: Path to `lame`, optional. Lame must be present for `mp3` support. Default `lame`.
 - **opus_path** or **OPUSENCPATH**: Path to `opusenc`, optional. File must be present for `opus` support. Default `opusenc`.
 - **flac_path** or **FLACPATH**: Path to `flac`, optional. File must be present for `flac` support. Default `flac`.
+- **quiet** or **QUIET**: If `True` don't info output. Default `False`.
 
 ### Usage
 Start synthesis generator and get audio data, chunk by chunk:

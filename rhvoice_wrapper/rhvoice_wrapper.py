@@ -15,6 +15,8 @@ from ctypes import string_at
 
 from rhvoice_wrapper import rhvoice_proxy
 
+_unset = object()
+
 
 def prepare_synthesis_params(old: dict, data: dict):
     def _set():
@@ -392,15 +394,51 @@ class MultiTTS:
 
 
 class TTS:
-    def __init__(self, **kwargs):
-        def dummy(*_):
-            return True
+    PARAMS = {
+        'threads': 'THREADED',
+        'force_process': 'PROCESSES_MODE',
+        'lib_path': 'RHVOICELIBPATH',
+        'data_path': 'RHVOICEDATAPATH',
+        'resources': 'RHVOICERESOURCES',
+        'lame_path': 'LAMEPATH',
+        'opus_path': 'OPUSENCPATH',
+        'flac_path': 'FLACPATH',
+        'quiet': 'QUIET',
+    }
+
+    def __init__(self, threads=_unset, force_process=_unset,
+                 lib_path=_unset, data_path=_unset, resources=_unset,
+                 lame_path=_unset, opus_path=_unset, flac_path=_unset,
+                 quiet=_unset
+                 ):
+        """
+        :param int or bool or None threads: If equal to 1, created one thread object,
+        if more running in multiprocessing mode and create a lot of processes. Default 1
+        :param bool or None force_process: If True engines run in multiprocessing mode, if False in threads mode.
+        Default False if threads == 1, else True.
+        :param str or None lib_path: Path to RHVoice library.
+        Default libRHVoice.so in Linux, libRHVoice.dylib in macOS and RHVoice.dll in Windows.
+        :param str or None data_path: Path to folder, containing voices and languages folders.
+        Default /usr/local/share/RHVoice.
+        :param list or str or None resources: A list of paths to language and voice data.
+        It should be used when it is not possible to collect all the data in one place. Default [].
+        :param str or None lame_path: Path to lame, optional. File must be present for mp3 support. Default lame.
+        :param str or None opus_path: Path to opusenc, optional. File must be present for opus support. Default opusenc.
+        :param str or None flac_path: Path to flac, optional. File must be present for flac support. Default flac.
+        :param bool or None quiet: If True don't info output. Default False.
+        """
+        kwargs = {}
+        for key in self.PARAMS:
+            if key in locals() and locals()[key] is not _unset:
+                kwargs[key] = locals()[key]
 
         envs = self._get_environs(kwargs)
 
         self._threads = self._prepare_threads(envs.pop('threads', None))
         self._process = self._prepare_process(envs.pop('force_process', None), self._threads)
+        quiet = self._prepare_bool(envs.pop('quiet', False))
         self._cmd = self._get_cmd(
+            quiet,
             envs.pop('lame_path', None),
             envs.pop('opus_path', None),
             envs.pop('flac_path', None),
@@ -413,9 +451,9 @@ class TTS:
         lib_path = {} if 'lib_path' not in envs2 else {'lib_path': envs2.pop('lib_path')}
         test = rhvoice_proxy.Engine(**lib_path)
         self._version = test.version
-        if self._api != self._version:
+        if self._api != self._version and not quiet:
             print('Warning! API version ({}) different of library version ({})'.format(self._api, self._version))
-        test.init(play_speech_cb=dummy, set_sample_rate_cb=dummy, **envs2)
+        test.init(play_speech_cb=lambda *_: True, set_sample_rate_cb=lambda *_: True, **envs2)
         self._voices = test.voices
         self._synth_set = test.SYNTHESIS_SET.copy()
         del test
@@ -471,20 +509,9 @@ class TTS:
             return self._synth_set.copy()
         return self._synth_set.get(param)
 
-    @staticmethod
-    def _get_environs(kwargs):
-        params = {
-            'lib_path': 'RHVOICELIBPATH',
-            'data_path': 'RHVOICEDATAPATH',
-            'resources': 'RHVOICERESOURCES',
-            'lame_path': 'LAMEPATH',
-            'opus_path': 'OPUSENCPATH',
-            'flac_path': 'FLACPATH',
-            'threads': 'THREADED',
-            'force_process': 'PROCESSES_MODE'
-        }
+    def _get_environs(self, kwargs):
         result = {}
-        for key, val in params.items():
+        for key, val in self.PARAMS.items():
             if key in kwargs:
                 result[key] = kwargs[key]
             elif val in os.environ:
@@ -492,16 +519,19 @@ class TTS:
         return result
 
     @staticmethod
-    def _prepare_process(force_process, threads):
-        if isinstance(force_process, str):
-            force_process = force_process.lower()
-            if force_process in ['true', 'yes', 'enable']:
+    def _prepare_bool(val, def_: bool=False):
+        if isinstance(val, str):
+            val = val.lower()
+            if val in ['true', 'yes', 'enable']:
                 return True
-            elif force_process in ['false', 'no', 'disable']:
+            elif val in ['false', 'no', 'disable']:
                 return False
-        elif isinstance(force_process, bool):
-            return force_process
-        return threads > 1
+        elif isinstance(val, bool):
+            return val
+        return def_
+
+    def _prepare_process(self, force_process, threads):
+        return self._prepare_bool(force_process, threads > 1)
 
     @staticmethod
     def _prepare_threads(threads):
@@ -521,7 +551,7 @@ class TTS:
         return threads
 
     @staticmethod
-    def _get_cmd(lame, opus, flac):
+    def _get_cmd(quiet, lame, opus, flac):
         base_cmd = {
             'mp3': [[lame or 'lame', '-htv', '--silent', '-', '-'], 'lame'],
             'opus': [[opus or 'opusenc', '--quiet', '--discard-comments', '--ignorelength', '-', '-'], 'opus-tools'],
@@ -531,6 +561,6 @@ class TTS:
         for key, val in base_cmd.items():
             if shutil.which(val[0][0]):
                 cmd[key] = val[0]
-            else:
+            elif not quiet:
                 print('Disable {} support - {} not found. Use apt install {}'.format(key, val[0][0], val[1]))
         return cmd
