@@ -249,6 +249,7 @@ class Engine:
         self._lib = load_tts_library(lib_path)
         self._engine = None
         self._synth_params = None
+        self._voice_profile = b'Anna'
         self.set_params(**self.SYNTHESIS_SET)
         self.__save_me = None
 
@@ -275,12 +276,13 @@ class Engine:
         voice = voice.capitalize()
         if alt_voice:
             voice = '{}+{}'.format(voice, alt_voice.capitalize())
-        self._synth_params.voice_profile = voice.encode()
+        self._voice_profile = voice.encode()
+        self._synth_params.voice_profile = self._voice_profile
 
     def generate(self, text):
         speak_generate(self._lib, text, self._synth_params, self._engine)
 
     def set_params(self, **kw):
         val = kw.copy()
-        val.update(voice_profile=b'Anna', punctuation_list=None)
+        val.update(voice_profile=self._voice_profile, punctuation_list=None)
         self._synth_params = RHVoice_synth_params(**val)
