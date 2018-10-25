@@ -215,6 +215,22 @@ class _BaseTTS:
         self._generator_work = threading.Event()
         self._generator_work.set()
         self._still_processing = False
+        self._rollback_sets = None
+
+    def _change_sets(self, sets: dict or None):
+        if not sets:
+            return
+        old_params = self._synthesis_param.copy()
+        if prepare_synthesis_params(self._synthesis_param, sets):
+            self._engine.set_params(**self._synthesis_param)
+            if self._rollback_sets is None:
+                self._rollback_sets = old_params
+
+    def _restore_sets(self):
+        if self._rollback_sets:
+            self._synthesis_param = self._rollback_sets
+            self._engine.set_params(**self._synthesis_param)
+            self._rollback_sets = None
 
     def _engine_init(self):
         self._engine = rhvoice_proxy.Engine(**self._lib_path)
@@ -286,12 +302,7 @@ class _BaseTTS:
 
     def _generate(self, text, voice, format_, sets):
         self._generator_work.clear()
-        rollback = False
-        if sets:
-            new_params = self._synthesis_param.copy()
-            rollback = prepare_synthesis_params(new_params, sets)
-            if rollback:
-                self._engine.set_params(**new_params)
+        self._change_sets(sets)
         if format_:
             self._format = format_
         if voice:
@@ -307,8 +318,7 @@ class _BaseTTS:
         self._still_processing = False
         if not self._worker.end_processing():
             self._wait.set()
-        if rollback:
-            self._engine.set_params(**self._synthesis_param)
+        self._restore_sets()
         self._release_busy()
 
     def run(self):
