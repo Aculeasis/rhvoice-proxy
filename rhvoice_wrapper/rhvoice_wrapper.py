@@ -110,13 +110,10 @@ class _AudioWorker:
     POPEN_TIMEOUT = 10
     JOIN_TIMEOUT = 10
 
-    def __init__(self, cmd, stream_):
+    def __init__(self, cmd: dict, stream_):
         self._cmd = cmd
         self._stream = stream_
-        self._popen = None
-        self._file = None
-        self._wave = None
-        self._in_out = None
+        self._wave, self._in_out, self._popen, self._file = None, None, None, None
         self._starting = False
 
         self.__empty = self._stream.empty
@@ -133,20 +130,23 @@ class _AudioWorker:
     def start_processing(self, format_, rate=24000):
         self._clear_stream()
 
-        self._file = None
-        self._popen = None
-        self._in_out = None
+        self._wave, self._in_out, self._popen, self._file = None, None, None, None
 
-        self._wave = _WaveWrite(self._select_target(format_))
-        self._wave.setnchannels(1)
-        self._wave.setsampwidth(self.SAMPLE_SIZE)
-        self._wave.setframerate(rate)
-        # noinspection PyProtectedMember
-        self._wave._write_header(0xFFFFFFF)  # Задаем 'бесконечную' длину файла
+        if format_ != 'pcm':
+            self._wave = _WaveWrite(self._select_target(format_))
+            self._wave.setnchannels(1)
+            self._wave.setsampwidth(self.SAMPLE_SIZE)
+            self._wave.setframerate(rate)
+            # noinspection PyProtectedMember
+            self._wave._write_header(0xFFFFFFF)  # Задаем 'бесконечную' длину файла
         self._starting = True
 
     def processing(self, samples, count):
-        self._wave.writeframesraw(string_at(samples, count * self.SAMPLE_SIZE))
+        data = string_at(samples, count * self.SAMPLE_SIZE)
+        if self._wave:
+            self._wave.writeframesraw(data)
+        else:
+            self._stream.put_nowait(data)
 
     def end_processing(self):
         if not self._starting:
@@ -168,6 +168,8 @@ class _AudioWorker:
         if self._popen:
             self._popen.stdout.close()
             self._popen.kill()
+        if not self._wave:  # format == pcm
+            self._stream.put_nowait(b'')
         self._starting = False
         return True
 
@@ -199,8 +201,8 @@ class _AudioWorker:
 class _BaseTTS:
     RELEASE_TIMEOUT = 3
 
-    def __init__(self, stream_, cmd, **kwargs):
-        self._cmd = cmd
+    def __init__(self, stream_, cmd: dict, allow_formats: frozenset, **kwargs):
+        self._allow_formats = allow_formats
         self._kwargs = kwargs.copy()
         self._synthesis_param = rhvoice_proxy.Engine.SYNTHESIS_SET.copy()  # Current params
         self._lib_path = {} if 'lib_path' not in self._kwargs else {'lib_path': self._kwargs.pop('lib_path')}
@@ -208,7 +210,7 @@ class _BaseTTS:
         self._queue = queue.Queue()
         self._format = 'wav'
         self._engine = None
-        self._worker = _AudioWorker(cmd=self._cmd, stream_=stream_)
+        self._worker = _AudioWorker(cmd=cmd, stream_=stream_)
         self._work = True
         self._client_here = threading.Event()
         self._client_here.set()
@@ -265,7 +267,7 @@ class _BaseTTS:
         self._generator_work.set()
 
     def _client_request(self, text, voice, format_, sets):
-        if format_ and format_ != 'wav' and format_ not in self._cmd:
+        if format_ and format_ not in self._allow_formats:
             raise RuntimeError('Unsupported format: {}'.format(format_))
         if sets is not None and not isinstance(sets, dict):
             RuntimeError('Sets must be dict or None')
@@ -455,7 +457,7 @@ class TTS:
             envs.pop('opus_path', None),
             envs.pop('flac_path', None),
         )
-        self._formats = tuple(['wav'] + [key for key in self._cmd])
+        self._formats = frozenset(['pcm', 'wav'] + [key for key in self._cmd])
 
         self._api = rhvoice_proxy.__version__
 
@@ -470,7 +472,7 @@ class TTS:
         self._synth_set = test.SYNTHESIS_SET.copy()
         del test
 
-        tts = MultiTTS(self._threads, self._process, self._cmd, **envs)
+        tts = MultiTTS(self._threads, self._process, self._cmd, self._formats, **envs)
 
         self.say = tts.say
         self.to_file = tts.to_file

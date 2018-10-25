@@ -7,7 +7,9 @@
 [![Build status](https://ci.appveyor.com/api/projects/status/lan2fw4c4xl7pvya/branch/master?svg=true)](https://ci.appveyor.com/project/Aculeasis/rhvoice-proxy)
 
 Generate speech stream from text without re-initializing engine.
-This very fast and more convenient than call RHVoice-test. Off the shelf supports `wav`, `mp3`, `opus` and `flac`.
+This very fast and more convenient than call RHVoice-test.
+
+Supported audio formats: `wav`, `mp3`, `opus`, `flac` and `pcm` (raw RHVoice output).
 
 ## Install
 `pip3 install rhvoice-wrapper`
@@ -92,21 +94,6 @@ tts.get_params(param=None)
 ```
 If param is `None` return all settings in `dict`, else parameter value by name as `numeric`. If parameter not found return `None`.
 
-#### benchmarks
-Synthetic benchmark. First return string 'start...', then results every 30 seconds. Works only in multiprocessing mode. Example:
-```python
-from rhvoice_wrapper import TTS
-
-tts = TTS(threads=24)
-end_in = 5
-for result in tts.benchmarks():
-    print(result)
-    end_in -= 1
-    if not end_in:
-        break
-tts.join()
-```
-
 #### join
 Join thread or processes. Don't use object after join:
 ```python
@@ -114,7 +101,7 @@ tts.join()
 ```
 
 ### Properties
-- `TTS.formats`: List of supported formats, `wav` always present.
+- `TTS.formats`: List of supported formats, `pcm` and `wav` always present.
 - `TTS.thread_count`: Number of synthesis threads.
 - `TTS.process`: If `True`, TTS running in multiprocessing mode.
 - `TTS.voices`: List of supported voices.

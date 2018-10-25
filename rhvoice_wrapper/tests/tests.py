@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import threading
+import time
 import traceback
 import unittest
 
@@ -36,22 +37,15 @@ class ThChecker(threading.Thread):
 
 class Monolithic(unittest.TestCase):
     def step_00_init(self):
-        self.files = {
-            'wav_base': 'wav1',
-            'wav': 'wav2',
-            'mp3': 'mp3',
-            'opus': 'opus',
-            'flac': 'flac'
-        }
-        self.files2 = {
-            'wav': 'wav_2',
-            'mp3': 'mp3_2',
-            'opus': 'opus_2',
-            'flac': 'flac_2'
-        }
+        all_formats = ['pcm', 'wav', 'mp3', 'opus', 'flac']
+        self.files = {'wav_base': 'wav_engine'}
+        self.files.update({key: key for key in all_formats})
+        self.files2 = {key: '{}_2'.format(key) for key in all_formats}
+
         self.sizes = {}
         self.msg = 'Я умею сохранять свой голос в {}'
         self.voice = 'anna'
+        self.wav_size = None
 
         self.engine = rhvoice_proxy.Engine()
         self.wave = WaveWriteFpCallback()
@@ -148,27 +142,38 @@ class Monolithic(unittest.TestCase):
         self.clear_sizes()
         self.tts = TTS(threads=3, quiet=True)
 
-    def step_081_processes_wav(self):
-        self._test_processes_format('wav')
-        self.wav_size = self._processes_eq_size()
-        self.clear_sizes()
+    def step_081_processes_init(self):
+        self._test_format('pcm')
 
-    def step_082_processes_opus(self):
+    def step_082_processes_wave(self):
+        self.wav_size = self._test_format('wav')
+
+    def step_083_processes__pcm(self):
+        self._test_format('pcm')
+
+    def step_084_processes_opus(self):
         self._test_format('opus')
 
-    def step_083_processes_mp3(self):
+    def step_085_processes__mp3(self):
         self._test_format('mp3')
 
-    def step_084_processes_flac(self):
+    def step_086_processes_flac(self):
         self._test_format('flac')
 
     def _test_format(self, format_):
         if format_ not in self.tts.formats:
             return print('skip ', end='')
+
+        work_time = time.perf_counter()
         self._test_processes_format(format_)
-        lossy_size = self._processes_eq_size()
-        self.assertGreater(self.wav_size, lossy_size, 'wav must be more {}'.format(format_))
+        work_time = time.perf_counter() - work_time
+
+        print('{:.3f} s '.format(work_time / len(self.files)), end='')
+        data_size = self._processes_eq_size()
+        if self.wav_size is not None:
+            self.assertGreater(self.wav_size, data_size, 'wav must be more {}'.format(format_))
         self.clear_sizes()
+        return data_size
 
     def _test_processes_format(self, format_, sets=None):
         ths = {}
