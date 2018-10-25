@@ -249,7 +249,7 @@ class _BaseTTS:
         self._generator_work.set()
 
     def _client_request(self, text, voice, format_, sets):
-        if format_ != 'wav' and format_ not in self._cmd:
+        if format_ and format_ != 'wav' and format_ not in self._cmd:
             raise RuntimeError('Unsupported format: {}'.format(format_))
         if sets is not None and not isinstance(sets, dict):
             RuntimeError('Sets must be dict or None')
@@ -292,8 +292,10 @@ class _BaseTTS:
             rollback = prepare_synthesis_params(new_params, sets)
             if rollback:
                 self._engine.set_params(**new_params)
-        self._format = format_
-        self._engine.set_voice(voice)
+        if format_:
+            self._format = format_
+        if voice:
+            self._engine.set_voice(voice)
         try:
             if isinstance(text, str):
                 self._engine.generate(text)
