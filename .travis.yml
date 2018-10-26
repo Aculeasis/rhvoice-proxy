@@ -54,6 +54,10 @@ install:
   - |
     if [ "$TRAVIS_OS_NAME" == "linux" ]; then
       pip install setuptools wheel
+      if [ -n "$TRAVIS_TAG" ] && [ "$TRAVIS_PYTHON_VERSION" == "3.6" ]; then
+        pip install -U pip
+        pip install -U setuptools wheel
+      fi
       pip install rhvoice-wrapper-data
       pip install rhvoice-wrapper-bin
     else
