@@ -7,7 +7,6 @@ import queue
 import shutil
 import subprocess
 import threading
-import time
 import wave
 from collections.abc import Iterable
 from contextlib import contextmanager
@@ -201,7 +200,8 @@ class _AudioWorker:
 class _BaseTTS:
     RELEASE_TIMEOUT = 3
 
-    def __init__(self, stream_, cmd: dict, allow_formats: frozenset, **kwargs):
+    def __init__(self, stream_, free, cmd: dict, allow_formats: frozenset, **kwargs):
+        self._free = free
         self._allow_formats = allow_formats
         self._kwargs = kwargs.copy()
         self._synthesis_param = rhvoice_proxy.Engine.SYNTHESIS_SET.copy()  # Current params
@@ -265,6 +265,7 @@ class _BaseTTS:
                 break
         self._client_here.set()
         self._generator_work.set()
+        self._free.set()
 
     def _client_request(self, text, voice, format_, sets):
         if format_ and format_ not in self._allow_formats:
@@ -370,8 +371,13 @@ class MultiTTS:
     TIMEOUT = 30
 
     def __init__(self, count, processes, *args, **kwargs):
-        worker = ProcessTTS if processes else ThreadTTS
-        self._workers = tuple([worker(*args, **kwargs) for _ in range(count)])
+        if processes:
+            worker = ProcessTTS
+            self._free = multiprocessing.Event()
+        else:
+            worker = ThreadTTS
+            self._free = threading.Event()
+        self._workers = tuple([worker(self._free, *args, **kwargs) for _ in range(count)])
         self._lock = threading.Lock()
         self._work = True
 
@@ -383,15 +389,14 @@ class MultiTTS:
 
     def _caller(self):
         self._lock.acquire()
-        end_time = time.perf_counter() + self.TIMEOUT
         try:
             while True:
+                self._free.clear()
                 for worker in self._workers:
                     if not worker.busy():
                         worker.client_here()
                         return worker
-                time.sleep(0.05)
-                if time.perf_counter() > end_time:
+                if not self._free.wait(self.TIMEOUT):
                     raise RuntimeError('Still busy')
         finally:
             self._lock.release()
