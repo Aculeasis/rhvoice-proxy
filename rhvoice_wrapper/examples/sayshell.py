@@ -6,6 +6,7 @@ import textwrap
 import threading
 
 import pyaudio
+
 from rhvoice_wrapper import TTS
 
 
@@ -18,11 +19,6 @@ def _prepare_set(val):
 
 def _normalize_set(val):
         return val/50.0-1
-
-
-def _get_sets(args):
-    keys = ['absolute_rate', 'absolute_pitch', 'absolute_volume']
-    return {key: _prepare_set(_normalize_set(args[key])) for key in keys if key in args}
 
 
 class Player(threading.Thread):
