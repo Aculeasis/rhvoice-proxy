@@ -98,9 +98,39 @@ class _InOut(threading.Thread):
                 chunk = self._in.read(self.BUFF)
             except ValueError:
                 chunk = b''
-            self._out.put_nowait(chunk)
+            self._out.put(chunk)
             if not chunk:
                 break
+
+
+class _Pipe:
+    # Pipe fasted for Process
+    # Queue fasted for Thread (i don't know why)
+    def __init__(self, is_pipe=False):
+        self._pipe = multiprocessing.Pipe(False) if is_pipe else queue.Queue()
+        if is_pipe:
+            self.get = self._pipe[0].recv
+            self.put = self._pipe[1].send
+        else:
+            self.get = self._pipe.get
+            self.put = self._pipe.put_nowait
+
+    def clear(self):
+        if isinstance(self._pipe, queue.Queue):
+            while self._pipe.qsize():
+                try:
+                    self._pipe.get_nowait()
+                except queue.Empty:
+                    break
+        else:
+            while self._pipe[0].poll():
+                self.get()
+
+    def qsize(self):
+        if isinstance(self._pipe, queue.Queue):
+            return self._pipe.qsize()
+        else:
+            return 1 if self._pipe[0].poll() else 0
 
 
 class _AudioWorker:
@@ -109,25 +139,17 @@ class _AudioWorker:
     POPEN_TIMEOUT = 10
     JOIN_TIMEOUT = 10
 
-    def __init__(self, cmd: dict, stream_):
+    def __init__(self, cmd: dict, pipe: _Pipe):
         self._cmd = cmd
-        self._stream = stream_
+        self._stream = pipe
         self._wave, self._in_out, self._popen, self._file = None, None, None, None
         self._starting = False
 
-        self.__empty = self._stream.empty
-        if platform.system().lower() == 'darwin':
-            # https://docs.python.org/3/library/multiprocessing.html?highlight=process#multiprocessing.Queue.qsize
-            self.qsize = self.__qsize_osx
-        else:
-            self.qsize = self._stream.qsize
         self.get = self._stream.get
-
-    def __qsize_osx(self):
-        return 0 if self.__empty() else 1
+        self.qsize = self._stream.qsize
 
     def start_processing(self, format_, rate=24000):
-        self._clear_stream()
+        self._stream.clear()
 
         self._wave, self._in_out, self._popen, self._file = None, None, None, None
 
@@ -145,12 +167,12 @@ class _AudioWorker:
         if self._wave:
             self._wave.writeframesraw(data)
         else:
-            self._stream.put_nowait(data)
+            self._stream.put(data)
 
     def end_processing(self):
         if not self._starting:
             # Генерации не было, надо отпустить клиента
-            self._stream.put_nowait(b'')
+            self._stream.put(b'')
             return False
         if self._wave:
             self._wave.close()
@@ -168,16 +190,9 @@ class _AudioWorker:
             self._popen.stdout.close()
             self._popen.kill()
         if not self._wave:  # format == pcm
-            self._stream.put_nowait(b'')
+            self._stream.put(b'')
         self._starting = False
         return True
-
-    def _clear_stream(self):
-        while self.qsize():
-            try:
-                self._stream.get_nowait()
-            except queue.Empty:
-                break
 
     def _create_popen(self, format_):
         self._popen = subprocess.Popen(
@@ -200,17 +215,17 @@ class _AudioWorker:
 class _BaseTTS:
     RELEASE_TIMEOUT = 3
 
-    def __init__(self, stream_, free, cmd: dict, allow_formats: frozenset, **kwargs):
+    def __init__(self, pipe, free, cmd: dict, allow_formats: frozenset, **kwargs):
         self._free = free
         self._allow_formats = allow_formats
         self._kwargs = kwargs.copy()
         self._synthesis_param = rhvoice_proxy.Engine.SYNTHESIS_SET.copy()  # Current params
         self._lib_path = {} if 'lib_path' not in self._kwargs else {'lib_path': self._kwargs.pop('lib_path')}
         self._wait = threading.Event()
-        self._queue = queue.Queue()
+        self._pipe = _Pipe()
         self._format = 'wav'
         self._engine = None
-        self._worker = _AudioWorker(cmd=cmd, stream_=stream_)
+        self._worker = _AudioWorker(cmd=cmd, pipe=pipe)
         self._work = True
         self._client_here = threading.Event()
         self._client_here.set()
@@ -272,7 +287,7 @@ class _BaseTTS:
             raise RuntimeError('Unsupported format: {}'.format(format_))
         if sets is not None and not isinstance(sets, dict):
             RuntimeError('Sets must be dict or None')
-        self._queue.put_nowait((text, voice, format_, sets))
+        self._pipe.put((text, voice, format_, sets))
         self._wait.wait(3600)
         self._wait.clear()
 
@@ -294,7 +309,7 @@ class _BaseTTS:
             self._client_here.set()
 
     def set_params(self, **kwargs):
-        self._queue.put_nowait(kwargs)
+        self._pipe.put(kwargs)
 
     def _iter_me(self, _=None):
         while True:
@@ -327,7 +342,7 @@ class _BaseTTS:
     def run(self):
         self._engine_init()
         while self._work:
-            data = self._queue.get()
+            data = self._pipe.get()
             if data is None:
                 break
             if isinstance(data, dict):
@@ -340,21 +355,21 @@ class _BaseTTS:
 class ThreadTTS(_BaseTTS, threading.Thread):
     def __init__(self, *args, **kwargs):
         threading.Thread.__init__(self)
-        _BaseTTS.__init__(self, queue.Queue(), *args, **kwargs)
+        _BaseTTS.__init__(self, _Pipe(), *args, **kwargs)
         self.start()
 
     def join(self, timeout=None):
         self._work = False
-        self._queue.put_nowait(None)
+        self._pipe.put(None)
         super().join()
 
 
 class ProcessTTS(_BaseTTS, multiprocessing.Process):
     def __init__(self, *args, **kwargs):
         multiprocessing.Process.__init__(self)
-        _BaseTTS.__init__(self, multiprocessing.Queue(), *args, **kwargs)
+        _BaseTTS.__init__(self, _Pipe(True), *args, **kwargs)
         self._wait = multiprocessing.Event()
-        self._queue = multiprocessing.Queue()
+        self._pipe = _Pipe(True)
         self._client_here = multiprocessing.Event()
         self._client_here.set()
         self._generator_work = multiprocessing.Event()
@@ -363,7 +378,7 @@ class ProcessTTS(_BaseTTS, multiprocessing.Process):
 
     def join(self, timeout=None):
         self._work = False
-        self._queue.put_nowait(None)
+        self._pipe.put(None)
         super().join()
 
 
