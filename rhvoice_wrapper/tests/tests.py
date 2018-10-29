@@ -11,10 +11,14 @@ from rhvoice_wrapper.tests.debug_callback import WaveWriteFpCallback
 
 
 def say_size(say, *args, **kwargs):
+    buff = kwargs.get('buff')
     size = 0
     with say(*args, **kwargs) as rd:
         for chunk in rd:
-            size += len(chunk)
+            chunk_size = len(chunk)
+            size += chunk_size
+            if buff and chunk_size > buff:
+                raise RuntimeError('Received chunk by more that buffer size, {} > {}'.format(chunk_size, buff))
     return size
 
 
@@ -178,12 +182,14 @@ class Monolithic(unittest.TestCase):
     def _test_processes_format(self, format_, sets=None):
         ths = {}
         pos = 0
+        buff = 1024 * 4
         for x in self.files.values():
             current_set = None
             if sets:
                 current_set = sets[pos]
                 pos += 1
-            kwargs = {'text': self.msg, 'voice': self.voice, 'format_': format_, 'sets': current_set}
+            kwargs = {'text': self.msg, 'voice': self.voice, 'format_': format_, 'buff': buff, 'sets': current_set}
+            buff += 256
             ths[x] = ThChecker(self.tts.say, kwargs)
         for key, val in ths.items():
             self.sizes[key] = val.size

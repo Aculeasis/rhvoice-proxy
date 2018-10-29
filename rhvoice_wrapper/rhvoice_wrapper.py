@@ -55,10 +55,10 @@ class _InOut(threading.Thread):
             try:
                 chunk = self._in.read(self._chunk_size)
             except ValueError:
-                chunk = b''
-            self._out.put(chunk)
+                break
             if not chunk:
                 break
+            self._out.put(chunk)
 
 
 class _Pipe:
@@ -90,19 +90,45 @@ class _Pipe:
         else:
             return 1 if self._pipe[0].poll() else 0
 
+
+class _StreamPipe(_Pipe):
+    def __init__(self, is_pipe=False):
+        super().__init__(is_pipe)
+        self._chunk_size = 1024 * 4
+        self._buffer = b''
+
+    def clear(self):
+        super().clear()
+        self._buffer = b''
+
     def close(self):
         pass
 
     def flush(self):
         pass
 
+    def end(self):
+        if self._buffer:
+            self.put(self._buffer)
+            self._buffer = b''
+        self.put(b'')
+
     @staticmethod
     def tell():
         return 0
 
+    def set_chunk_size(self, size):
+        self._chunk_size = size
+
     def write(self, data):
-        if data:
-            self.put(data)
+        self._buffer += data
+        size = len(self._buffer)
+        if size >= self._chunk_size:
+            end = 0
+            for start in range(0, size, self._chunk_size):
+                end = start + self._chunk_size
+                self.put(self._buffer[start:end])
+            self._buffer = self._buffer[end:]
 
 
 class _AudioWorker:
@@ -110,7 +136,7 @@ class _AudioWorker:
     POPEN_TIMEOUT = 10
     JOIN_TIMEOUT = 10
 
-    def __init__(self, cmd: dict, pipe: _Pipe):
+    def __init__(self, cmd: dict, pipe: _StreamPipe):
         self._cmd = cmd
         self._stream = pipe
         self._wave, self._in_out, self._popen = None, None, None
@@ -121,6 +147,7 @@ class _AudioWorker:
 
     def start_processing(self, format_, chunk_size, rate=24000):
         self._stream.clear()
+        self._stream.set_chunk_size(chunk_size)
 
         self._wave, self._in_out, self._popen = None, None, None
 
@@ -138,12 +165,12 @@ class _AudioWorker:
         if self._wave:
             self._wave.writeframesraw(data)
         else:
-            self._stream.put(data)
+            self._stream.write(data)
 
     def end_processing(self):
         if not self._starting:
             # Генерации не было, надо отпустить клиента
-            self._stream.put(b'')
+            self._stream.end()
             return False
         if self._wave:
             self._wave.close()
@@ -158,8 +185,7 @@ class _AudioWorker:
         if self._popen:
             self._popen.stdout.close()
             self._popen.kill()
-        if not self._popen:  # rhvoice direct write to stream
-            self._stream.put(b'')
+        self._stream.end()
         self._starting = False
         return True
 
@@ -182,7 +208,7 @@ class _AudioWorker:
 class _BaseTTS:
     RELEASE_TIMEOUT = 3
 
-    def __init__(self, pipe, free, cmd: dict, allow_formats: frozenset, **kwargs):
+    def __init__(self, pipe: _StreamPipe, free, cmd: dict, allow_formats: frozenset, **kwargs):
         self._free = free
         self._allow_formats = allow_formats
         self._kwargs = kwargs.copy()
@@ -325,7 +351,7 @@ class _BaseTTS:
 class ThreadTTS(_BaseTTS, threading.Thread):
     def __init__(self, *args, **kwargs):
         threading.Thread.__init__(self)
-        _BaseTTS.__init__(self, _Pipe(), *args, **kwargs)
+        _BaseTTS.__init__(self, _StreamPipe(), *args, **kwargs)
         self.start()
 
     def join(self, timeout=None):
@@ -337,7 +363,7 @@ class ThreadTTS(_BaseTTS, threading.Thread):
 class ProcessTTS(_BaseTTS, multiprocessing.Process):
     def __init__(self, *args, **kwargs):
         multiprocessing.Process.__init__(self)
-        _BaseTTS.__init__(self, _Pipe(True), *args, **kwargs)
+        _BaseTTS.__init__(self, _StreamPipe(True), *args, **kwargs)
         self._wait = multiprocessing.Event()
         self._pipe = _Pipe(True)
         self._client_here = multiprocessing.Event()
