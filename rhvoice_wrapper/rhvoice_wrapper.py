@@ -2,7 +2,6 @@
 
 import multiprocessing
 import os
-import platform
 import queue
 import shutil
 import subprocess
@@ -43,59 +42,18 @@ class _WaveWrite(wave.Wave_write):
         pass
 
 
-class _FakeFile(queue.Queue):
-    def __init__(self):
-        super().__init__()
-        self._open = True
-
-    @staticmethod
-    def tell():
-        return 0
-
-    def write(self, data):
-        if data:
-            self.put_nowait(data)
-
-    def read(self, *_):
-        if not self._open:
-            return b''
-        if self.qsize() > 1:
-            data = b''
-            while self.qsize():
-                data_p = self.get()
-                data += data_p
-                if not data_p:
-                    self._open = False
-        else:
-            data = self.get()
-            if not data:
-                self._open = False
-        return data
-
-    def end(self):
-        if self._open:
-            self.put_nowait(b'')
-
-    def close(self):
-        pass
-
-    def flush(self):
-        pass
-
-
 class _InOut(threading.Thread):
-    BUFF = 1024
-
-    def __init__(self, in_, out_):
+    def __init__(self, in_, out_, chunk_size):
         super().__init__()
         self._in = in_
         self._out = out_
+        self._chunk_size = chunk_size
         self.start()
 
     def run(self):
         while True:
             try:
-                chunk = self._in.read(self.BUFF)
+                chunk = self._in.read(self._chunk_size)
             except ValueError:
                 chunk = b''
             self._out.put(chunk)
@@ -132,9 +90,22 @@ class _Pipe:
         else:
             return 1 if self._pipe[0].poll() else 0
 
+    def close(self):
+        pass
+
+    def flush(self):
+        pass
+
+    @staticmethod
+    def tell():
+        return 0
+
+    def write(self, data):
+        if data:
+            self.put(data)
+
 
 class _AudioWorker:
-    BUFF_SIZE = 1024
     SAMPLE_SIZE = 2
     POPEN_TIMEOUT = 10
     JOIN_TIMEOUT = 10
@@ -142,19 +113,19 @@ class _AudioWorker:
     def __init__(self, cmd: dict, pipe: _Pipe):
         self._cmd = cmd
         self._stream = pipe
-        self._wave, self._in_out, self._popen, self._file = None, None, None, None
+        self._wave, self._in_out, self._popen = None, None, None
         self._starting = False
 
         self.get = self._stream.get
         self.qsize = self._stream.qsize
 
-    def start_processing(self, format_, rate=24000):
+    def start_processing(self, format_, chunk_size, rate=24000):
         self._stream.clear()
 
-        self._wave, self._in_out, self._popen, self._file = None, None, None, None
+        self._wave, self._in_out, self._popen = None, None, None
 
         if format_ != 'pcm':
-            self._wave = _WaveWrite(self._select_target(format_))
+            self._wave = _WaveWrite(self._select_target(format_, chunk_size))
             self._wave.setnchannels(1)
             self._wave.setsampwidth(self.SAMPLE_SIZE)
             self._wave.setframerate(rate)
@@ -176,8 +147,6 @@ class _AudioWorker:
             return False
         if self._wave:
             self._wave.close()
-        if self._file:
-            self._file.end()
         if self._popen:
             self._popen.stdin.close()
             try:
@@ -189,7 +158,7 @@ class _AudioWorker:
         if self._popen:
             self._popen.stdout.close()
             self._popen.kill()
-        if not self._wave:  # format == pcm
+        if not self._popen:  # rhvoice direct write to stream
             self._stream.put(b'')
         self._starting = False
         return True
@@ -201,15 +170,13 @@ class _AudioWorker:
             stdin=subprocess.PIPE
         )
 
-    def _select_target(self, format_):
+    def _select_target(self, format_, chunk_size):
         if format_ in self._cmd:
             self._create_popen(format_)
-            self._in_out = _InOut(self._popen.stdout, self._stream)
+            self._in_out = _InOut(self._popen.stdout, self._stream, chunk_size)
             return self._popen.stdin
         else:
-            self._file = _FakeFile()
-            self._in_out = _InOut(self._file, self._stream)
-            return self._file
+            return self._stream
 
 
 class _BaseTTS:
@@ -224,6 +191,7 @@ class _BaseTTS:
         self._wait = threading.Event()
         self._pipe = _Pipe()
         self._format = 'wav'
+        self._chunk_size = 1024 * 4
         self._engine = None
         self._worker = _AudioWorker(cmd=cmd, pipe=pipe)
         self._work = True
@@ -260,7 +228,7 @@ class _BaseTTS:
     def _sr_callback(self, rate, *_):
         if not self._still_processing:
             self._still_processing = True
-            self._worker.start_processing(self._format, rate)
+            self._worker.start_processing(self._format, self._chunk_size, rate)
             self._wait.set()
         return True
 
@@ -282,27 +250,27 @@ class _BaseTTS:
         self._generator_work.set()
         self._free.set()
 
-    def _client_request(self, text, voice, format_, sets):
+    def _client_request(self, text, voice, format_, chunk_size, sets):
         if format_ and format_ not in self._allow_formats:
             raise RuntimeError('Unsupported format: {}'.format(format_))
         if sets is not None and not isinstance(sets, dict):
             RuntimeError('Sets must be dict or None')
-        self._pipe.put((text, voice, format_, sets))
+        self._pipe.put((text, voice, format_, chunk_size, sets))
         self._wait.wait(3600)
         self._wait.clear()
 
     @contextmanager
-    def say(self, text, voice='anna', format_='mp3', buff=1024, sets=None):
+    def say(self, text, voice='anna', format_='mp3', buff=1024 * 4, sets=None):
         try:
-            self._client_request(text, voice, format_, sets)
-            yield self._iter_me(buff)
+            self._client_request(text, voice, format_, buff, sets)
+            yield self._iter_me()
         finally:
             self._client_here.set()
 
     def to_file(self, filename, text, voice='anna', format_='mp3', sets=None):
         try:
             with open(filename, 'wb') as fp:
-                self._client_request(text, voice, format_, sets)
+                self._client_request(text, voice, format_, 1024 * 4, sets)
                 for chunk in self._iter_me():
                     fp.write(chunk)
         finally:
@@ -311,18 +279,20 @@ class _BaseTTS:
     def set_params(self, **kwargs):
         self._pipe.put(kwargs)
 
-    def _iter_me(self, _=None):
+    def _iter_me(self):
         while True:
             chunk = self._worker.get()
             if not chunk:
                 break
             yield chunk
 
-    def _generate(self, text, voice, format_, sets):
+    def _generate(self, text, voice, format_, chunk_size, sets):
         self._generator_work.clear()
         self._change_sets(sets)
         if format_:
             self._format = format_
+        if chunk_size:
+            self._chunk_size = chunk_size
         if voice:
             self._engine.set_voice(voice)
         try:
@@ -399,7 +369,7 @@ class MultiTTS:
     def to_file(self, filename, text, voice='anna', format_='mp3', sets=None):
         return self._caller().to_file(filename, text, voice, format_, sets)
 
-    def say(self, text, voice='anna', format_='mp3', buff=1024, sets=None):
+    def say(self, text, voice='anna', format_='mp3', buff=1024 * 4, sets=None):
         return self._caller().say(text, voice, format_, buff, sets)
 
     def _caller(self):
