@@ -47,9 +47,10 @@ Default `False` if threads == 1, else `True`.
 
 ### Usage
 Start synthesis generator and get audio data, chunk by chunk:
+
 ```python
-def generator_audio(text, voice, audio_format, sets):
-    with tts.say(text, voice, audio_format, sets=sets) as gen:
+def generator_audio(text, voice='anna', format_='wav', buff=4096, sets=None):
+    with tts.say(text, voice, format_, buff, sets) as gen:
         for chunk in gen:
             yield chunk
 ```
@@ -72,8 +73,8 @@ def _text():
             yield text
             text = fp.read(5000)
 
-def generator_audio(voice, audio_format, sets):
-    with tts.say(_text(), voice, audio_format, sets=sets) as gen:
+def generator_audio():
+    with tts.say(_text()) as gen:
         for chunk in gen:
             yield chunk
 ```
