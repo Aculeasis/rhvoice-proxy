@@ -123,12 +123,10 @@ class _StreamPipe(_Pipe):
     def write(self, data):
         self._buffer += data
         size = len(self._buffer)
-        if size >= self._chunk_size:
-            end = 0
-            for start in range(0, size, self._chunk_size):
-                end = start + self._chunk_size
-                self.put(self._buffer[start:end])
-            self._buffer = self._buffer[end:]
+        while size >= self._chunk_size:
+            self.put(self._buffer[:self._chunk_size])
+            self._buffer = self._buffer[self._chunk_size:]
+            size -= self._chunk_size
 
 
 class _AudioWorker:
