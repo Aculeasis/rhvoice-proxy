@@ -8,7 +8,7 @@ from rhvoice_wrapper import TTS
 
 def benchmarks(tts):
     # PPS - Phrases Per Second
-    # i7-8700k: 80.3 PPS
+    # i7-8700k: 82 PPS
     # OrangePi Prime: 4.4 PPS
     text = 'Так себе, вызовы сэй будут блокировать выполнение'
     workers = tuple([_Benchmarks(text, tts.say) for _ in range(tts.thread_count)])

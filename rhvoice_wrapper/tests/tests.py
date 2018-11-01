@@ -13,12 +13,20 @@ from rhvoice_wrapper.tests.debug_callback import WaveWriteFpCallback
 def say_size(say, *args, **kwargs):
     buff = kwargs.get('buff')
     size = 0
+    last = None
     with say(*args, **kwargs) as rd:
         for chunk in rd:
             chunk_size = len(chunk)
             size += chunk_size
-            if buff and chunk_size > buff:
-                raise RuntimeError('Received chunk by more that buffer size, {} > {}'.format(chunk_size, buff))
+            if buff:
+                if chunk_size > buff:
+                    raise RuntimeError('Received chunk by more that buffer size, {} > {}'.format(chunk_size, buff))
+                if chunk_size < buff:
+                    if last:
+                        raise RuntimeError('Received chunk by less than buffer size, {} < {}'.format(chunk_size, buff))
+                    else:
+                        last = chunk_size
+
     return size
 
 

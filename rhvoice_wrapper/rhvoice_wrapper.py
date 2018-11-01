@@ -94,12 +94,7 @@ class _Pipe:
 class _StreamPipe(_Pipe):
     def __init__(self, is_pipe=False):
         super().__init__(is_pipe)
-        self._chunk_size = 1024 * 4
-        self._buffer = b''
-
-    def clear(self):
-        super().clear()
-        self._buffer = b''
+        self.write = self.put
 
     def close(self):
         pass
@@ -107,26 +102,9 @@ class _StreamPipe(_Pipe):
     def flush(self):
         pass
 
-    def end(self):
-        if self._buffer:
-            self.put(self._buffer)
-            self._buffer = b''
-        self.put(b'')
-
     @staticmethod
     def tell():
         return 0
-
-    def set_chunk_size(self, size):
-        self._chunk_size = size
-
-    def write(self, data):
-        self._buffer += data
-        size = len(self._buffer)
-        while size >= self._chunk_size:
-            self.put(self._buffer[:self._chunk_size])
-            self._buffer = self._buffer[self._chunk_size:]
-            size -= self._chunk_size
 
 
 class _AudioWorker:
@@ -145,7 +123,6 @@ class _AudioWorker:
 
     def start_processing(self, format_, chunk_size, rate=24000):
         self._stream.clear()
-        self._stream.set_chunk_size(chunk_size)
 
         self._wave, self._in_out, self._popen = None, None, None
 
@@ -163,12 +140,12 @@ class _AudioWorker:
         if self._wave:
             self._wave.writeframesraw(data)
         else:
-            self._stream.write(data)
+            self._stream.put(data)
 
     def end_processing(self):
         if not self._starting:
             # Генерации не было, надо отпустить клиента
-            self._stream.end()
+            self._stream.put(b'')
             return False
         if self._wave:
             self._wave.close()
@@ -183,7 +160,7 @@ class _AudioWorker:
         if self._popen:
             self._popen.stdout.close()
             self._popen.kill()
-        self._stream.end()
+        self._stream.put(b'')
         self._starting = False
         return True
 
@@ -287,7 +264,7 @@ class _BaseTTS:
     def say(self, text, voice='anna', format_='mp3', buff=1024 * 4, sets=None):
         try:
             self._client_request(text, voice, format_, buff, sets)
-            yield self._iter_me()
+            yield self._iter_me_splitting(buff) if format_ in ['pcm', 'wav'] else self._iter_me()
         finally:
             self._client_here.set()
 
@@ -309,6 +286,21 @@ class _BaseTTS:
             if not chunk:
                 break
             yield chunk
+
+    def _iter_me_splitting(self, chunk_size):
+        buffer = b''
+        while True:
+            chunk = self._worker.get()
+            if not chunk:
+                break
+            buffer += chunk
+            size = len(buffer)
+            while size >= chunk_size:
+                yield buffer[:chunk_size]
+                buffer = buffer[chunk_size:]
+                size -= chunk_size
+        if buffer:
+            yield buffer
 
     def _generate(self, text, voice, format_, chunk_size, sets):
         self._generator_work.clear()
