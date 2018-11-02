@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import threading
 import wave
+from collections import deque
 from collections.abc import Iterable
 from contextlib import contextmanager
 from ctypes import string_at
@@ -73,28 +74,44 @@ class _Pipe:
             self.get = self._pipe.get
             self.put = self._pipe.put_nowait
 
+
+class _StreamPipe:
+    def __init__(self, is_pipe=False):
+        self._pipe = multiprocessing.Pipe(False) if is_pipe else deque()
+        if is_pipe:
+            self.get = self._pipe[0].recv_bytes
+            self.put = self._pipe[1].send_bytes
+        else:
+            self.get = self.__get_deque
+            self.put = self.__put_deque
+            self.__event = threading.Event()
+        self.write = self.put
+
+    def __get_deque(self):
+        while True:
+            self.__event.wait(1)
+            try:
+                return self._pipe.popleft()
+            except IndexError:
+                self.__event.clear()
+                continue
+
+    def __put_deque(self, data):
+        self._pipe.append(data)
+        self.__event.set()
+
     def clear(self):
-        if isinstance(self._pipe, queue.Queue):
-            while self._pipe.qsize():
-                try:
-                    self._pipe.get_nowait()
-                except queue.Empty:
-                    break
+        if isinstance(self._pipe, deque):
+            self._pipe.clear()
         else:
             while self._pipe[0].poll():
                 self.get()
 
     def qsize(self):
-        if isinstance(self._pipe, queue.Queue):
-            return self._pipe.qsize()
+        if isinstance(self._pipe, deque):
+            return len(self._pipe)
         else:
             return 1 if self._pipe[0].poll() else 0
-
-
-class _StreamPipe(_Pipe):
-    def __init__(self, is_pipe=False):
-        super().__init__(is_pipe)
-        self.write = self.put
 
     def close(self):
         pass
