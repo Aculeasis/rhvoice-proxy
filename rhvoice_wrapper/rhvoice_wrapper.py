@@ -15,6 +15,8 @@ from ctypes import string_at
 from rhvoice_wrapper import rhvoice_proxy
 
 _unset = object()
+DEFAULT_CHUNK_SIZE = 1024 * 4
+DEFAULT_FORMAT = 'wav'
 
 
 def prepare_synthesis_params(old: dict, data: dict):
@@ -208,8 +210,8 @@ class _BaseTTS:
         self._lib_path = {} if 'lib_path' not in self._kwargs else {'lib_path': self._kwargs.pop('lib_path')}
         self._wait = threading.Event()
         self._pipe = _Pipe()
-        self._format = 'wav'
-        self._chunk_size = 1024 * 4
+        self._format = DEFAULT_FORMAT
+        self._chunk_size = DEFAULT_CHUNK_SIZE
         self._engine = None
         self._worker = _AudioWorker(cmd=cmd, pipe=pipe)
         self._work = True
@@ -269,7 +271,7 @@ class _BaseTTS:
         self._free.set()
 
     def _client_request(self, text, voice, format_, chunk_size, sets):
-        if format_ and format_ not in self._allow_formats:
+        if format_ not in self._allow_formats:
             raise RuntimeError('Unsupported format: {}'.format(format_))
         if sets is not None and not isinstance(sets, dict):
             RuntimeError('Sets must be dict or None')
@@ -278,17 +280,19 @@ class _BaseTTS:
         self._wait.clear()
 
     @contextmanager
-    def say(self, text, voice='anna', format_='mp3', buff=1024 * 4, sets=None):
+    def say(self, text, voice, format_, buff, sets):
         try:
+            format_ = format_ or DEFAULT_FORMAT
             self._client_request(text, voice, format_, buff, sets)
             yield self._iter_me_splitting(buff) if format_ in ['pcm', 'wav'] and buff else self._iter_me()
         finally:
             self._client_here.set()
 
-    def to_file(self, filename, text, voice='anna', format_='mp3', sets=None):
+    def to_file(self, filename, text, voice, format_, sets):
         try:
             with open(filename, 'wb') as fp:
-                self._client_request(text, voice, format_, 1024 * 4, sets)
+                format_ = format_ or DEFAULT_FORMAT
+                self._client_request(text, voice, format_, DEFAULT_CHUNK_SIZE, sets)
                 for chunk in self._iter_me():
                     fp.write(chunk)
         finally:
@@ -322,10 +326,8 @@ class _BaseTTS:
     def _generate(self, text, voice, format_, chunk_size, sets):
         self._generator_work.clear()
         self._change_sets(sets)
-        if format_:
-            self._format = format_
-        if chunk_size:
-            self._chunk_size = chunk_size
+        self._format = format_
+        self._chunk_size = chunk_size or DEFAULT_CHUNK_SIZE
         if voice:
             self._engine.set_voice(voice)
         try:
@@ -399,10 +401,10 @@ class MultiTTS:
         self._lock = threading.Lock()
         self._work = True
 
-    def to_file(self, filename, text, voice='anna', format_='mp3', sets=None):
+    def to_file(self, filename: str, text: str, voice='anna', format_=DEFAULT_FORMAT, sets=None):
         return self._caller().to_file(filename, text, voice, format_, sets)
 
-    def say(self, text, voice='anna', format_='mp3', buff=1024 * 4, sets=None):
+    def say(self, text: str, voice='anna', format_=DEFAULT_FORMAT, buff=DEFAULT_CHUNK_SIZE, sets=None):
         return self._caller().say(text, voice, format_, buff, sets)
 
     def _caller(self):

@@ -61,6 +61,9 @@ tts.to_file(filename='esperanto.ogg', text='Saluton mondo', voice='spomenka', fo
 `sets` may set as dict containing synthesis parameters as in [set_params](#set_params).
 This parameters only work for current phrase. Default `None`.
 
+If `buff` equal `None or 0`, for pcm and wav chunks return as is (probably little faster).
+For others used default chunk size (4 KiB).
+
 #### Text as iterable object
 If `text` iterable object, all its fragments will processing successively.
 This is a good method for processing incredibly large texts.
