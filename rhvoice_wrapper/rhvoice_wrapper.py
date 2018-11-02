@@ -281,7 +281,7 @@ class _BaseTTS:
     def say(self, text, voice='anna', format_='mp3', buff=1024 * 4, sets=None):
         try:
             self._client_request(text, voice, format_, buff, sets)
-            yield self._iter_me_splitting(buff) if format_ in ['pcm', 'wav'] else self._iter_me()
+            yield self._iter_me_splitting(buff) if format_ in ['pcm', 'wav'] and buff else self._iter_me()
         finally:
             self._client_here.set()
 
