@@ -2,6 +2,7 @@
 
 # Copyright (C) 2010-2013  Olga Yakovleva <yakovleva.o.v@gmail.com>
 # Copyright (C) 2015  anatoly techtonik <techtonik@gmail.com>
+# Copyright (C) 2018 Aculeasis
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
