@@ -241,6 +241,10 @@ class _BaseTTS:
         self._engine = rhvoice_proxy.Engine(**self._lib_path)
         self._engine.init(self._speech_callback, self._sr_callback, **self._kwargs)
 
+    def _engine_destroy(self):
+        self._engine.exterminate()
+        self._engine = None
+
     def _speech_callback(self, samples, count, *_):
         self._worker.processing(samples, count)
         return not self._client_here.is_set() and self._work
@@ -355,6 +359,7 @@ class _BaseTTS:
                 self._engine.set_params(**data)
             else:
                 self._generate(*data)
+        self._engine_destroy()
 
 
 class ThreadTTS(_BaseTTS, threading.Thread):

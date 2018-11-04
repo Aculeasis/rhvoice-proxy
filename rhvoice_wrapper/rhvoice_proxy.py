@@ -279,3 +279,9 @@ class Engine:
         val = kw.copy()
         val.update(voice_profile=self._voice_profile, punctuation_list=None)
         self._synth_params = RHVoice_synth_params(**val)
+
+    def exterminate(self):
+        if self._engine:
+            self._lib.RHVoice_delete_tts_engine(self._engine)
+            self._engine = None
+            self.__save_me = None
