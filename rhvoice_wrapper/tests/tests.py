@@ -26,7 +26,6 @@ def say_size(say, *args, **kwargs):
                         raise RuntimeError('Received chunk by less than buffer size, {} < {}'.format(chunk_size, buff))
                     else:
                         last = chunk_size
-
     return size
 
 

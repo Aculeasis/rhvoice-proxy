@@ -19,7 +19,7 @@ DEFAULT_CHUNK_SIZE = 1024 * 4
 DEFAULT_FORMAT = 'wav'
 
 
-def prepare_synthesis_params(old: dict, data: dict):
+def _prepare_synthesis_params(old: dict, data: dict):
     def _set():
         if key in old and old[key] != val:
             old[key] = val
@@ -43,6 +43,9 @@ class _WaveWrite(wave.Wave_write):
 
     def _patchheader(self):
         pass
+
+    def write_header(self, init_length=0xFFFFFFF):   # Задаем 'бесконечную' длину файла
+        self._write_header(init_length)
 
 
 class _InOut(threading.Thread):
@@ -127,7 +130,7 @@ class _StreamPipe:
 
 
 class _AudioWorker:
-    SAMPLE_SIZE = 2
+    SAMPLE_WIDTH = 2
     POPEN_TIMEOUT = 10
     JOIN_TIMEOUT = 10
 
@@ -148,14 +151,13 @@ class _AudioWorker:
         if format_ != 'pcm':
             self._wave = _WaveWrite(self._select_target(format_, chunk_size))
             self._wave.setnchannels(1)
-            self._wave.setsampwidth(self.SAMPLE_SIZE)
+            self._wave.setsampwidth(self.SAMPLE_WIDTH)
             self._wave.setframerate(rate)
-            # noinspection PyProtectedMember
-            self._wave._write_header(0xFFFFFFF)  # Задаем 'бесконечную' длину файла
+            self._wave.write_header()
         self._starting = True
 
     def processing(self, samples, count):
-        data = string_at(samples, count * self.SAMPLE_SIZE)
+        data = string_at(samples, count * self.SAMPLE_WIDTH)
         if self._wave:
             self._wave.writeframesraw(data)
         else:
@@ -226,7 +228,7 @@ class _BaseTTS:
         if not sets:
             return
         old_params = self._synthesis_param.copy()
-        if prepare_synthesis_params(self._synthesis_param, sets):
+        if _prepare_synthesis_params(self._synthesis_param, sets):
             self._engine.set_params(**self._synthesis_param)
             if self._rollback_sets is None:
                 self._rollback_sets = old_params
@@ -542,7 +544,7 @@ class TTS:
         return self._cmd
 
     def set_params(self, **kwargs):
-        if prepare_synthesis_params(self._synth_set, kwargs):
+        if _prepare_synthesis_params(self._synth_set, kwargs):
             self.__set_params(**self._synth_set)
             return True
         else:
