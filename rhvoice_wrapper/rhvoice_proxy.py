@@ -22,7 +22,8 @@
 # https://github.com/techtonik/RHVoice/blob/master/src/nvda-synthDriver/RHVoice.py
 
 __author__ = "Olga Yakovleva <yakovleva.o.v@gmail.com>"
-__version__ = '0.7.2'
+__version__ = '1.0.0'
+SUPPORT = ('0.7.2', '1.0.0')
 
 import os
 import platform
@@ -30,6 +31,7 @@ from ctypes import CDLL, CFUNCTYPE, POINTER, Structure, c_char_p, c_double
 from ctypes import c_int, c_uint, c_short, c_void_p, byref
 
 try:
+    # noinspection PyUnresolvedReferences
     import rhvoice_wrapper_bin
     _LIB_PATH = rhvoice_wrapper_bin.lib_path
     _DATA_PATH = rhvoice_wrapper_bin.data_path
@@ -62,9 +64,10 @@ class RHVoice_callback_types:
     sentence_starts = CFUNCTYPE(c_int, c_uint, c_uint, c_void_p)
     sentence_ends = CFUNCTYPE(c_int, c_uint, c_uint, c_void_p)
     play_audio = CFUNCTYPE(c_int, c_char_p, c_void_p)
+    done = CFUNCTYPE(None, c_void_p)
 
 
-class RHVoice_callbacks(Structure):
+class RHVoice_callbacks_072(Structure):
     _fields_ = [("set_sample_rate", RHVoice_callback_types.set_sample_rate),
                 ("play_speech", RHVoice_callback_types.play_speech),
                 ("process_mark", RHVoice_callback_types.process_mark),
@@ -73,6 +76,20 @@ class RHVoice_callbacks(Structure):
                 ("sentence_starts", RHVoice_callback_types.sentence_starts),
                 ("sentence_ends", RHVoice_callback_types.sentence_ends),
                 ("play_audio", RHVoice_callback_types.play_audio)]
+
+
+class RHVoice_callbacks(Structure):
+    # noinspection PyProtectedMember
+    _fields_ = RHVoice_callbacks_072._fields_.copy()
+    _fields_.append(("done", RHVoice_callback_types.done))
+
+
+class RHVoice_init_params_072(Structure):
+    _fields_ = [("data_path", c_char_p),
+                ("config_path", c_char_p),
+                ("resource_paths", POINTER(c_char_p)),
+                ("callbacks", RHVoice_callbacks_072),
+                ("options", c_uint)]
 
 
 class RHVoice_init_params(Structure):
@@ -95,10 +112,16 @@ class RHVoice_voice_gender:
     female = 2
 
 
-class RHVoice_voice_info(Structure):
+class RHVoice_voice_info_072(Structure):
     _fields_ = [("language", c_char_p),
                 ("name", c_char_p),
                 ("gender", c_int)]
+
+
+class RHVoice_voice_info(Structure):
+    # noinspection PyProtectedMember
+    _fields_ = RHVoice_voice_info_072._fields_.copy()
+    _fields_.append(("country", c_char_p))
 
 
 class RHVoice_punctuation_mode:
@@ -141,14 +164,15 @@ def _lib_selector(lib_path):
 def load_tts_library(lib_path=None):
     lib = CDLL(_lib_selector(lib_path))
     lib.RHVoice_get_version.restype = c_char_p
-    lib.RHVoice_new_tts_engine.argtypes = (POINTER(RHVoice_init_params),)
+    old = is_old_version(lib)
+    lib.RHVoice_new_tts_engine.argtypes = (POINTER(RHVoice_init_params_072 if old else RHVoice_init_params),)
     lib.RHVoice_new_tts_engine.restype = RHVoice_tts_engine
     lib.RHVoice_delete_tts_engine.argtypes = (RHVoice_tts_engine,)
     lib.RHVoice_delete_tts_engine.restype = None
     lib.RHVoice_get_number_of_voices.argtypes = (RHVoice_tts_engine,)
     lib.RHVoice_get_number_of_voices.restype = c_uint
     lib.RHVoice_get_voices.argtypes = (RHVoice_tts_engine,)
-    lib.RHVoice_get_voices.restype = POINTER(RHVoice_voice_info)
+    lib.RHVoice_get_voices.restype = POINTER(RHVoice_voice_info_072 if old else RHVoice_voice_info)
     lib.RHVoice_get_number_of_voice_profiles.argtypes = (RHVoice_tts_engine,)
     lib.RHVoice_get_number_of_voice_profiles.restype = c_uint
     lib.RHVoice_get_voice_profiles.argtypes = (RHVoice_tts_engine,)
@@ -167,6 +191,16 @@ def load_tts_library(lib_path=None):
 
 # --- main code ---
 
+def is_old_version(lib) -> bool:
+    ver = get_rhvoice_version(lib)
+    # noinspection PyBroadException
+    try:
+        ver = tuple(int(x) for x in ver.split('.'))
+    except Exception:
+        ver = (1, 0, 0)
+    return ver < (1, 0, 0)
+
+
 def get_rhvoice_version(lib):
     return lib.RHVoice_get_version().decode('utf-8')
 
@@ -179,12 +213,13 @@ def get_engine(lib, play_speech_cb, set_sample_rate_cb, resources=None, data_pat
     if isinstance(resources, str):
         resources = [resources]
 
-    callbacks = RHVoice_callbacks()
+    old = is_old_version(lib)
+    callbacks = RHVoice_callbacks_072() if old else RHVoice_callbacks()
     callbacks.play_speech = RHVoice_callback_types.play_speech(play_speech_cb)
     callbacks.set_sample_rate = RHVoice_callback_types.set_sample_rate(set_sample_rate_cb)
 
     resource_paths = [] if not resources else [k.encode() for k in resources]
-    params = RHVoice_init_params()
+    params = RHVoice_init_params_072() if old else RHVoice_init_params()
     # noinspection PyTypeChecker,PyCallingNonCallable
     params.resource_paths = (c_char_p * (len(resource_paths) + 1))(*(resource_paths + [None]))
     params.data_path = data_path.encode() if data_path else b'/usr/local/share/RHVoice'
@@ -212,7 +247,7 @@ def speak_generate(lib, text, synth_params, engine):
     lib.RHVoice_delete_message(message)  # free the memory (check when message is stored)
 
 
-def get_voices(lib, engine):
+def get_voices(lib, engine) -> dict:
     """
     Returns nested dictionary with voice information. First
     level key is voice name in lowercase, second level keys
@@ -222,6 +257,7 @@ def get_voices(lib, engine):
     voices = dict()
     voices_total = lib.RHVoice_get_number_of_voices(engine)
     first_voice = lib.RHVoice_get_voices(engine)
+    old = is_old_version(lib)
     for voiceno in range(voices_total):
         vi = first_voice[voiceno]
         key = vi.name.lower().decode()
@@ -229,7 +265,8 @@ def get_voices(lib, engine):
             no=voiceno,
             name=vi.name.decode(),
             lang=vi.language.decode(),
-            gender=genders[vi.gender]
+            gender=genders[vi.gender],
+            country='NaN' if old else vi.country.decode()
         )
     return voices
 
@@ -262,7 +299,7 @@ class Engine:
         (self._engine, self.__save_me) = get_engine(self._lib, play_speech_cb, set_sample_rate_cb, resources, data_path)
 
     @property
-    def voices(self):
+    def voices(self) -> dict:
         return get_voices(self._lib, self._engine)
 
     def set_voice(self, voices: str or list):

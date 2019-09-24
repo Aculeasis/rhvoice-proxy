@@ -3,25 +3,23 @@ matrix:
   include:
   - os: linux
     language: python
-    python: '3.4'
-  - os: linux
-    language: python
     python: '3.5'
   - os: linux
     language: python
     python: '3.6'
   - os: linux
     language: python
-    python: '3.7-dev'
+    python: '3.7'
   - os: linux
     language: python
-    python: '3.7-dev'
+    python: '3.7'
     env: PROCESSES_MODE=False
   - os: osx
+    osx_image: xcode11
     language: cpp
     env: PYTHON=3.6.6
   allow_failures:
-    - python: '3.7-dev'
+    - python: '3.7'
       env: PROCESSES_MODE=False
 
 sudo:
@@ -47,10 +45,10 @@ before_install:
       brew install lame opus-tools flac --quiet
       python -m pip install --quiet -U pip
       pip install -U setuptools wheel
-      pip install scons
     fi
 
 install:
+  - pip install scons lxml
   - |
     if [ "$TRAVIS_OS_NAME" == "linux" ]; then
       pip install setuptools wheel
@@ -61,9 +59,8 @@ install:
       pip install rhvoice-wrapper-data
       pip install rhvoice-wrapper-bin
     else
-      git clone https://github.com/Olga-Yakovleva/RHVoice.git
+      git clone --depth=1 --branch=1.0.0 https://github.com/Olga-Yakovleva/RHVoice.git
       cd RHVoice
-      git checkout dc36179
       scons
       scons install
       cd ..

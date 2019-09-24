@@ -497,8 +497,10 @@ class TTS:
         lib_path = {} if 'lib_path' not in envs2 else {'lib_path': envs2.pop('lib_path')}
         test = rhvoice_proxy.Engine(**lib_path)
         self._version = test.version
-        if self._api != self._version and not quiet:
-            print('Warning! API version ({}) different of library version ({})'.format(self._api, self._version))
+        if self._version not in rhvoice_proxy.SUPPORT and not quiet:
+            print(
+                'Warning! Unsupported library version (API: {}; LIB: {})'.format(rhvoice_proxy.SUPPORT, self._version)
+            )
         test.init(play_speech_cb=lambda *_: True, set_sample_rate_cb=lambda *_: True, **envs2)
         self._voices = test.voices
         self._synth_set = test.SYNTHESIS_SET.copy()

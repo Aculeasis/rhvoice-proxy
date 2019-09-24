@@ -71,12 +71,17 @@ class Monolithic(unittest.TestCase):
         print()
 
         voices = self.engine.voices
-        voice_order = sorted(voices.items(), key=lambda x: x[1]['no'])
-        voice_order = [v[0] for v in voice_order]
-        print('Voice     Language  Gender')
+        name_len = 5
+        voice_order = []
+        for v in sorted(voices.items(), key=lambda x: x[1]['no']):
+            voice_order.append(v[0])
+            if len(v[1]['name']) > name_len:
+                name_len = len(v[1]['name'])
+        print('Voice {}Language  Gender   Country'.format(' ' * (name_len - 5)))
+        line = '  {name:#}  {lang:2}     {gender:6}     {country:2}'.replace('#', str(name_len + 1), 1)
         for i in range(len(voices)):
             voice = voices[voice_order[i]]
-            print('  {name:10}  {lang:2}    {gender:2} '.format(**voice))
+            print(line.format(**voice))
         print('Number of voices: {}'.format(len(voices)))
         print('Formats: {} ... '.format(', '.join(self.tts.formats)), end='')
 
