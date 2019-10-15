@@ -84,11 +84,19 @@ class _StreamPipe:
         self._pipe = multiprocessing.Queue() if is_multiprocessing else queue.Queue()
         self.get = self._pipe.get
         self.put = self._pipe.put_nowait
-        self.qsize = self._pipe.qsize
         self.write = self.put
+        try:
+            self._pipe.qsize()
+        except NotImplementedError:
+            self.qsize = self._osx_qsize
+        else:
+            self.qsize = self._pipe.qsize
+
+    def _osx_qsize(self) -> int:
+        return int(not self._pipe.empty())
 
     def clear(self):
-        while self._pipe.qsize():
+        while self.qsize():
             try:
                 self._pipe.get_nowait()
             except queue.Empty:
