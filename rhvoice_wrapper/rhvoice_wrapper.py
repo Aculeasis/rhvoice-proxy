@@ -7,7 +7,6 @@ import shutil
 import subprocess
 import threading
 import wave
-from collections import deque
 from collections.abc import Iterable
 from contextlib import contextmanager
 from ctypes import string_at
@@ -70,9 +69,9 @@ class _InOut(threading.Thread):
 class _Pipe:
     # Pipe fasted for Process
     # Queue fasted for Thread (i don't know why)
-    def __init__(self, is_pipe=False):
-        self._pipe = multiprocessing.Pipe(False) if is_pipe else queue.Queue()
-        if is_pipe:
+    def __init__(self, is_multiprocessing=False):
+        self._pipe = multiprocessing.Pipe(False) if is_multiprocessing else queue.Queue()
+        if is_multiprocessing:
             self.get = self._pipe[0].recv
             self.put = self._pipe[1].send
         else:
@@ -81,42 +80,19 @@ class _Pipe:
 
 
 class _StreamPipe:
-    def __init__(self, is_pipe=False):
-        self._pipe = multiprocessing.Pipe(False) if is_pipe else deque()
-        if is_pipe:
-            self.get = self._pipe[0].recv_bytes
-            self.put = self._pipe[1].send_bytes
-        else:
-            self.get = self.__get_deque
-            self.put = self.__put_deque
-            self.__event = threading.Event()
+    def __init__(self, is_multiprocessing=False):
+        self._pipe = multiprocessing.Queue() if is_multiprocessing else queue.Queue()
+        self.get = self._pipe.get
+        self.put = self._pipe.put_nowait
+        self.qsize = self._pipe.qsize
         self.write = self.put
 
-    def __get_deque(self):
-        while True:
-            self.__event.wait(1)
-            try:
-                return self._pipe.popleft()
-            except IndexError:
-                self.__event.clear()
-                continue
-
-    def __put_deque(self, data):
-        self._pipe.append(data)
-        self.__event.set()
-
     def clear(self):
-        if isinstance(self._pipe, deque):
-            self._pipe.clear()
-        else:
-            while self._pipe[0].poll():
-                self.get()
-
-    def qsize(self):
-        if isinstance(self._pipe, deque):
-            return len(self._pipe)
-        else:
-            return 1 if self._pipe[0].poll() else 0
+        while self._pipe.qsize():
+            try:
+                self._pipe.get_nowait()
+            except queue.Empty:
+                pass
 
     def close(self):
         pass
