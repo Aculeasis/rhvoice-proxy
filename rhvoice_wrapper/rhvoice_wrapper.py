@@ -13,6 +13,13 @@ from ctypes import string_at
 
 from rhvoice_wrapper import rhvoice_proxy
 
+try:
+    multiprocessing.Queue().qsize()
+except NotImplementedError:
+    OSX_FIX = True
+else:
+    OSX_FIX = False
+
 _unset = object()
 DEFAULT_CHUNK_SIZE = 1024 * 4
 DEFAULT_FORMAT = 'wav'
@@ -85,9 +92,7 @@ class _StreamPipe:
         self.get = self._pipe.get
         self.put = self._pipe.put_nowait
         self.write = self.put
-        try:
-            self._pipe.qsize()
-        except NotImplementedError:
+        if is_multiprocessing and OSX_FIX:
             self.qsize = self._osx_qsize
         else:
             self.qsize = self._pipe.qsize
