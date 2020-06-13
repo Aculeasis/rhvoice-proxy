@@ -253,21 +253,26 @@ def get_voices(lib, engine) -> dict:
     level key is voice name in lowercase, second level keys
     are voice properties.
     """
-    genders = {1: 'male', 2: 'female'}
+    genders = {0: 'unknown', 1: 'male', 2: 'female'}
     voices = dict()
     voices_total = lib.RHVoice_get_number_of_voices(engine)
-    first_voice = lib.RHVoice_get_voices(engine)
+    voices_raw = lib.RHVoice_get_voices(engine)
     old = is_old_version(lib)
-    for voiceno in range(voices_total):
-        vi = first_voice[voiceno]
-        key = vi.name.lower().decode()
-        voices[key] = dict(
-            no=voiceno,
-            name=vi.name.decode(),
-            lang=vi.language.decode(),
-            gender=genders[vi.gender],
-            country='NaN' if old else vi.country.decode()
-        )
+    for number in range(voices_total):
+        vi = voices_raw[number]
+        try:
+            name = vi.name.decode()
+        except (UnicodeDecodeError, AttributeError) as e:
+            print('Wrong voice name, ignore #{}: {}'.format(number, e))
+            continue
+        key = name.lower()
+        voices[key] = {
+            'no': number,
+            'name': name,
+            'lang': vi.language.decode(errors='replace') if vi.language else 'NaN',
+            'gender': genders.get(vi.gender, 'NaN'),
+            'country': 'NaN' if old or not vi.country else vi.country.decode(errors='replace')
+        }
     return voices
 
 
