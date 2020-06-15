@@ -67,7 +67,7 @@ class Monolithic(unittest.TestCase):
         print()
         print('Versions:')
         print(' RHVoice:    {}'.format(self.engine.version))
-        print(' Python API: {}'.format(rhvoice_proxy.__version__))
+        print(' Python API: {}'.format(self.engine.api))
         print()
 
         voices = self.engine.voices

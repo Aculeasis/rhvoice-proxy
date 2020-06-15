@@ -32,7 +32,7 @@ def _prepare_synthesis_params(old: dict, data: dict):
             return True
         return False
 
-    adv = {'punctuation_mode': 3, 'capitals_mode': 4}
+    adv = {'punctuation_mode': 3, 'capitals_mode': 4, 'flags': 1}
     change = False
     for key, val in data.items():
         if key in adv:
@@ -197,13 +197,13 @@ class _BaseTTS:
         self._free = free
         self._allow_formats = allow_formats
         self._kwargs = kwargs.copy()
-        self._synthesis_param = rhvoice_proxy.Engine.SYNTHESIS_SET.copy()  # Current params
         self._lib_path = {} if 'lib_path' not in self._kwargs else {'lib_path': self._kwargs.pop('lib_path')}
         self._wait = threading.Event()
         self._pipe = _Pipe()
         self._format = DEFAULT_FORMAT
         self._chunk_size = DEFAULT_CHUNK_SIZE
         self._engine = None
+        self._synthesis_param = None
         self._worker = _AudioWorker(cmd=cmd, pipe=pipe)
         self._work = True
         self._client_here = threading.Event()
@@ -230,6 +230,7 @@ class _BaseTTS:
 
     def _engine_init(self):
         self._engine = rhvoice_proxy.Engine(**self._lib_path)
+        self._synthesis_param = self._engine.synthesis_set.copy()  # Current params
         self._engine.init(self._speech_callback, self._sr_callback, **self._kwargs)
 
     def _engine_destroy(self):
@@ -480,19 +481,20 @@ class TTS:
         )
         self._formats = frozenset(['pcm', 'wav'] + [key for key in self._cmd])
 
-        self._api = rhvoice_proxy.__version__
-
         envs2 = envs.copy()
         lib_path = {} if 'lib_path' not in envs2 else {'lib_path': envs2.pop('lib_path')}
         test = rhvoice_proxy.Engine(**lib_path)
+        self._api = test.api
         self._version = test.version
         if self._version not in rhvoice_proxy.SUPPORT and not quiet:
             print(
-                'Warning! Unsupported library version (API: {}; LIB: {})'.format(rhvoice_proxy.SUPPORT, self._version)
+                'Warning! Unsupported library version, use API {}. Supported: {}, library: {}.'.format(
+                    self._api, rhvoice_proxy.SUPPORT, self._version
+                )
             )
         test.init(play_speech_cb=lambda *_: True, set_sample_rate_cb=lambda *_: True, **envs2)
         self._voices = test.voices
-        self._synth_set = test.SYNTHESIS_SET.copy()
+        self._synth_set = test.synthesis_set.copy()
         del test
 
         tts = MultiTTS(self._threads, self._process, self._cmd, self._formats, **envs)
@@ -556,7 +558,7 @@ class TTS:
         return result
 
     @staticmethod
-    def _prepare_bool(val, def_: bool=False):
+    def _prepare_bool(val, def_: bool = False):
         if isinstance(val, str):
             val = val.lower()
             if val in ['true', 'yes', 'enable']:

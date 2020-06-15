@@ -22,8 +22,7 @@
 # https://github.com/techtonik/RHVoice/blob/master/src/nvda-synthDriver/RHVoice.py
 
 __author__ = "Olga Yakovleva <yakovleva.o.v@gmail.com>"
-__version__ = '1.0.0'
-SUPPORT = ('0.7.2', '1.0.0')
+SUPPORT = ('0.7.2', '1.0.0', '1.2.0')
 
 import os
 import platform
@@ -78,10 +77,16 @@ class RHVoice_callbacks_072(Structure):
                 ("play_audio", RHVoice_callback_types.play_audio)]
 
 
-class RHVoice_callbacks(Structure):
+class RHVoice_callbacks_100(Structure):
     # noinspection PyProtectedMember
     _fields_ = RHVoice_callbacks_072._fields_.copy()
     _fields_.append(("done", RHVoice_callback_types.done))
+
+
+def RHVoice_callbacks(api: tuple):
+    if api < (1, 0, 0):
+        return RHVoice_callbacks_072
+    return RHVoice_callbacks_100
 
 
 class RHVoice_init_params_072(Structure):
@@ -92,12 +97,61 @@ class RHVoice_init_params_072(Structure):
                 ("options", c_uint)]
 
 
-class RHVoice_init_params(Structure):
+class RHVoice_init_params_100(Structure):
     _fields_ = [("data_path", c_char_p),
                 ("config_path", c_char_p),
                 ("resource_paths", POINTER(c_char_p)),
-                ("callbacks", RHVoice_callbacks),
+                ("callbacks", RHVoice_callbacks_100),
                 ("options", c_uint)]
+
+
+def RHVoice_init_params(api: tuple):
+    if api < (1, 0, 0):
+        return RHVoice_init_params_072
+    return RHVoice_init_params_100
+
+
+class RHVoice_voice_info_072(Structure):
+    _fields_ = [("language", c_char_p),
+                ("name", c_char_p),
+                ("gender", c_int)]
+
+
+class RHVoice_voice_info_100(Structure):
+    # noinspection PyProtectedMember
+    _fields_ = RHVoice_voice_info_072._fields_.copy()
+    _fields_.append(("country", c_char_p))
+
+
+def RHVoice_voice_info(api: tuple):
+    if api < (1, 0, 0):
+        return RHVoice_voice_info_072
+    return RHVoice_voice_info_100
+
+
+class RHVoice_synth_params_100(Structure):
+    _fields_ = [("voice_profile", c_char_p),
+                ("absolute_rate", c_double),
+                ("absolute_pitch", c_double),
+                ("absolute_volume", c_double),
+                ("relative_rate", c_double),
+                ("relative_pitch", c_double),
+                ("relative_volume", c_double),
+                ("punctuation_mode", c_int),
+                ("punctuation_list", c_char_p),
+                ("capitals_mode", c_int)]
+
+
+class RHVoice_synth_params_120(Structure):
+    # noinspection PyProtectedMember
+    _fields_ = RHVoice_synth_params_100._fields_.copy()
+    _fields_.append(("flags", c_int))
+
+
+def RHVoice_synth_params(api: tuple):
+    if api < (1, 2, 0):
+        return RHVoice_synth_params_100
+    return RHVoice_synth_params_120
 
 
 class RHVoice_message_type:
@@ -110,18 +164,6 @@ class RHVoice_voice_gender:
     unknown = 0
     male = 1
     female = 2
-
-
-class RHVoice_voice_info_072(Structure):
-    _fields_ = [("language", c_char_p),
-                ("name", c_char_p),
-                ("gender", c_int)]
-
-
-class RHVoice_voice_info(Structure):
-    # noinspection PyProtectedMember
-    _fields_ = RHVoice_voice_info_072._fields_.copy()
-    _fields_.append(("country", c_char_p))
 
 
 class RHVoice_punctuation_mode:
@@ -139,17 +181,8 @@ class RHVoice_capitals_mode:
     sound = 4
 
 
-class RHVoice_synth_params(Structure):
-    _fields_ = [("voice_profile", c_char_p),
-                ("absolute_rate", c_double),
-                ("absolute_pitch", c_double),
-                ("absolute_volume", c_double),
-                ("relative_rate", c_double),
-                ("relative_pitch", c_double),
-                ("relative_volume", c_double),
-                ("punctuation_mode", c_int),
-                ("punctuation_list", c_char_p),
-                ("capitals_mode", c_int)]
+class RHVoice_synth_flag:
+    dont_clip_rate = 1
 
 
 def _lib_selector(lib_path):
@@ -161,18 +194,18 @@ def _lib_selector(lib_path):
     return lib_path if os.name == 'nt' else lib_path.encode()
 
 
-def load_tts_library(lib_path=None):
+def load_tts_library(lib_path=None, api=None):
     lib = CDLL(_lib_selector(lib_path))
     lib.RHVoice_get_version.restype = c_char_p
-    old = is_old_version(lib)
-    lib.RHVoice_new_tts_engine.argtypes = (POINTER(RHVoice_init_params_072 if old else RHVoice_init_params),)
+    api = api or get_compatible_api(lib)
+    lib.RHVoice_new_tts_engine.argtypes = (POINTER(RHVoice_init_params(api)),)
     lib.RHVoice_new_tts_engine.restype = RHVoice_tts_engine
     lib.RHVoice_delete_tts_engine.argtypes = (RHVoice_tts_engine,)
     lib.RHVoice_delete_tts_engine.restype = None
     lib.RHVoice_get_number_of_voices.argtypes = (RHVoice_tts_engine,)
     lib.RHVoice_get_number_of_voices.restype = c_uint
     lib.RHVoice_get_voices.argtypes = (RHVoice_tts_engine,)
-    lib.RHVoice_get_voices.restype = POINTER(RHVoice_voice_info_072 if old else RHVoice_voice_info)
+    lib.RHVoice_get_voices.restype = POINTER(RHVoice_voice_info(api))
     lib.RHVoice_get_number_of_voice_profiles.argtypes = (RHVoice_tts_engine,)
     lib.RHVoice_get_number_of_voice_profiles.restype = c_uint
     lib.RHVoice_get_voice_profiles.argtypes = (RHVoice_tts_engine,)
@@ -180,32 +213,37 @@ def load_tts_library(lib_path=None):
     lib.RHVoice_are_languages_compatible.argtypes = (RHVoice_tts_engine, c_char_p, c_char_p)
     lib.RHVoice_are_languages_compatible.restype = c_int
     lib.RHVoice_new_message.argtypes = (
-        RHVoice_tts_engine, c_char_p, c_uint, c_int, POINTER(RHVoice_synth_params), c_void_p)
+        RHVoice_tts_engine, c_char_p, c_uint, c_int, POINTER(RHVoice_synth_params(api)), c_void_p)
     lib.RHVoice_new_message.restype = RHVoice_message
     lib.RHVoice_delete_message.arg_types = (RHVoice_message,)
     lib.RHVoice_delete_message.restype = None
     lib.RHVoice_speak.argtypes = (RHVoice_message,)
     lib.RHVoice_speak.restype = c_int
-    return lib
+    return lib, api
 
 
 # --- main code ---
 
-def is_old_version(lib) -> bool:
-    ver = get_rhvoice_version(lib)
+def get_compatible_api(lib) -> tuple:
+    version = get_rhvoice_version(lib)
     # noinspection PyBroadException
     try:
-        ver = tuple(int(x) for x in ver.split('.'))
+        version = tuple(int(x) for x in version.split('.'))
     except Exception:
-        ver = (1, 0, 0)
-    return ver < (1, 0, 0)
+        version = (1, 0, 0)
+
+    if version < (1, 0, 0):
+        return 0, 7, 2
+    if version < (1, 2, 0):
+        return 1, 0, 0
+    return 1, 2, 0
 
 
 def get_rhvoice_version(lib):
     return lib.RHVoice_get_version().decode('utf-8')
 
 
-def get_engine(lib, play_speech_cb, set_sample_rate_cb, resources=None, data_path=None):
+def get_engine(lib, api, play_speech_cb, set_sample_rate_cb, resources=None, data_path=None):
     """
     Load DLL and initialize speech engine - load language data
     and set callbacks.
@@ -213,13 +251,12 @@ def get_engine(lib, play_speech_cb, set_sample_rate_cb, resources=None, data_pat
     if isinstance(resources, str):
         resources = [resources]
 
-    old = is_old_version(lib)
-    callbacks = RHVoice_callbacks_072() if old else RHVoice_callbacks()
+    callbacks = RHVoice_callbacks(api)()
     callbacks.play_speech = RHVoice_callback_types.play_speech(play_speech_cb)
     callbacks.set_sample_rate = RHVoice_callback_types.set_sample_rate(set_sample_rate_cb)
 
     resource_paths = [] if not resources else [k.encode() for k in resources]
-    params = RHVoice_init_params_072() if old else RHVoice_init_params()
+    params = RHVoice_init_params(api)()
     # noinspection PyTypeChecker,PyCallingNonCallable
     params.resource_paths = (c_char_p * (len(resource_paths) + 1))(*(resource_paths + [None]))
     params.data_path = data_path.encode() if data_path else b'/usr/local/share/RHVoice'
@@ -247,7 +284,7 @@ def speak_generate(lib, text, synth_params, engine):
     lib.RHVoice_delete_message(message)  # free the memory (check when message is stored)
 
 
-def get_voices(lib, engine) -> dict:
+def get_voices(lib, engine, api) -> dict:
     """
     Returns nested dictionary with voice information. First
     level key is voice name in lowercase, second level keys
@@ -257,7 +294,6 @@ def get_voices(lib, engine) -> dict:
     voices = dict()
     voices_total = lib.RHVoice_get_number_of_voices(engine)
     voices_raw = lib.RHVoice_get_voices(engine)
-    old = is_old_version(lib)
     for number in range(voices_total):
         vi = voices_raw[number]
         try:
@@ -271,13 +307,12 @@ def get_voices(lib, engine) -> dict:
             'name': name,
             'lang': vi.language.decode(errors='replace') if vi.language else 'NaN',
             'gender': genders.get(vi.gender, 'NaN'),
-            'country': 'NaN' if old or not vi.country else vi.country.decode(errors='replace')
+            'country': 'NaN' if api < (1, 0, 0) or not vi.country else vi.country.decode(errors='replace')
         }
     return voices
 
 
-class Engine:
-    SYNTHESIS_SET = {
+SYNTHESIS_SET_100 = {
         'absolute_rate': 0,
         'relative_rate': 1,
         'absolute_pitch': 0,
@@ -287,25 +322,42 @@ class Engine:
         'punctuation_mode': RHVoice_punctuation_mode.default,
         'capitals_mode': RHVoice_capitals_mode.default
     }
+SYNTHESIS_SET_120 = SYNTHESIS_SET_100.copy()
+SYNTHESIS_SET_120.update(flags=int(not RHVoice_synth_flag.dont_clip_rate))
 
-    def __init__(self, lib_path=_LIB_PATH):
-        self._lib = load_tts_library(lib_path)
+
+def get_synthesis_set(api: tuple) -> dict:
+    if api < (1, 2, 0):
+        return SYNTHESIS_SET_100
+    return SYNTHESIS_SET_120
+
+
+class Engine:
+    def __init__(self, lib_path=_LIB_PATH, api=None):
+        self._lib, self._api = load_tts_library(lib_path, api)
+        self.synthesis_set = get_synthesis_set(self._api)
         self._engine = None
         self._synth_params = None
         self._voice_profile = b'Anna'
-        self.set_params(**self.SYNTHESIS_SET)
+        self.set_params(**self.synthesis_set)
         self.__save_me = None
 
     @property
     def version(self):
         return get_rhvoice_version(self._lib)
 
+    @property
+    def api(self):
+        return '.'.join(str(k) for k in self._api)
+
     def init(self, play_speech_cb, set_sample_rate_cb, resources=None, data_path=_DATA_PATH):
-        (self._engine, self.__save_me) = get_engine(self._lib, play_speech_cb, set_sample_rate_cb, resources, data_path)
+        (self._engine, self.__save_me) = get_engine(
+            self._lib, self._api, play_speech_cb, set_sample_rate_cb, resources, data_path
+        )
 
     @property
     def voices(self) -> dict:
-        return get_voices(self._lib, self._engine)
+        return get_voices(self._lib, self._engine, self._api)
 
     def set_voice(self, voices: str or list):
         if not isinstance(voices, list):
@@ -320,7 +372,7 @@ class Engine:
     def set_params(self, **kw):
         val = kw.copy()
         val.update(voice_profile=self._voice_profile, punctuation_list=None)
-        self._synth_params = RHVoice_synth_params(**val)
+        self._synth_params = RHVoice_synth_params(self._api)(**val)
 
     def exterminate(self):
         if self._engine:
