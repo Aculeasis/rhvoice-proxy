@@ -41,6 +41,7 @@ Default `False` if threads == 1, else `True`.
 **Threads mode and threads > 1 causes a segmentation faults or may return corrupted data**
 - **lib_path** or **RHVOICELIBPATH**: Path to RHVoice library. Default `libRHVoice.so` in Linux, `libRHVoice.dylib` in macOS and `RHVoice.dll` in Windows.
 - **data_path** or **RHVOICEDATAPATH**: Path to folder, containing voices and languages folders. Default `/usr/local/share/RHVoice`.
+- **config_path**: Path to folder, contain RHVoice.conf in linux and RHVoice.ini in windows. Default `/usr/local/etc/RHVoice`.
 - **resources** or **RHVOICERESOURCES**: A list of paths to language and voice data. It should be used when it is not possible to collect all the data in one place. Default `[]`.
 - **lame_path** or **LAMEPATH**: Path to `lame`, optional. Lame must be present for `mp3` support. Default `lame`.
 - **opus_path** or **OPUSENCPATH**: Path to `opusenc`, optional. File must be present for `opus` support. Default `opusenc`.

@@ -440,12 +440,13 @@ class TTS:
         'opus_path': 'OPUSENCPATH',
         'flac_path': 'FLACPATH',
         'quiet': 'QUIET',
+        'config_path': 'RHVOICECONFIGPATH',
     }
 
     def __init__(self, threads=_unset, force_process=_unset,
                  lib_path=_unset, data_path=_unset, resources=_unset,
                  lame_path=_unset, opus_path=_unset, flac_path=_unset,
-                 quiet=_unset
+                 quiet=_unset, config_path=_unset,
                  ):
         """
         :param int or bool or None threads: If equal to 1, created one thread object,
@@ -462,6 +463,8 @@ class TTS:
         :param str or None opus_path: Path to opusenc, optional. File must be present for opus support. Default opusenc.
         :param str or None flac_path: Path to flac, optional. File must be present for flac support. Default flac.
         :param bool or None quiet: If True don't info output. Default False.
+        :param str or None config_path: Path to folder, contain RHVoice.conf in linux and RHVoice.ini in windows.
+        Default /usr/local/etc/RHVoice.
         """
         kwargs = {}
         for key in self.PARAMS:

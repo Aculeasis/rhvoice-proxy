@@ -243,7 +243,7 @@ def get_rhvoice_version(lib):
     return lib.RHVoice_get_version().decode('utf-8')
 
 
-def get_engine(lib, api, play_speech_cb, set_sample_rate_cb, resources=None, data_path=None):
+def get_engine(lib, api, play_speech_cb, set_sample_rate_cb, resources=None, data_path=None, config_path=None):
     """
     Load DLL and initialize speech engine - load language data
     and set callbacks.
@@ -260,6 +260,7 @@ def get_engine(lib, api, play_speech_cb, set_sample_rate_cb, resources=None, dat
     # noinspection PyTypeChecker,PyCallingNonCallable
     params.resource_paths = (c_char_p * (len(resource_paths) + 1))(*(resource_paths + [None]))
     params.data_path = data_path.encode() if data_path else b'/usr/local/share/RHVoice'
+    params.config_path = config_path.encode() if config_path else b'/usr/local/etc/RHVoice'
     params.callbacks = callbacks
     engine = lib.RHVoice_new_tts_engine(byref(params))
     if not engine:
@@ -350,9 +351,9 @@ class Engine:
     def api(self):
         return '.'.join(str(k) for k in self._api)
 
-    def init(self, play_speech_cb, set_sample_rate_cb, resources=None, data_path=_DATA_PATH):
+    def init(self, play_speech_cb, set_sample_rate_cb, resources=None, data_path=_DATA_PATH, config_path=None):
         (self._engine, self.__save_me) = get_engine(
-            self._lib, self._api, play_speech_cb, set_sample_rate_cb, resources, data_path
+            self._lib, self._api, play_speech_cb, set_sample_rate_cb, resources, data_path, config_path
         )
 
     @property
