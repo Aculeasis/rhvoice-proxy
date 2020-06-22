@@ -24,7 +24,7 @@ This package **NOT** provide [RHvoice](https://github.com/Olga-Yakovleva/RHVoice
 Instead of RHVoice you may install [rhvoice-wrapper-bin](https://github.com/Aculeasis/rhvoice-wrapper-bin). This is best way for Windows. 
 If the `rhvoice-wrapper-bin` is installed, its libraries and data will be used automatically.
 
-`pip3 install rhvoice-wrapper-bin`
+`pip3 install rhvoice-wrapper[rhvoice]`
 
 ## Documentation
 

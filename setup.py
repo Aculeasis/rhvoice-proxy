@@ -18,6 +18,9 @@ setup(
     long_description=long_description,
     long_description_content_type='text/markdown',
     python_requires='>=3.4',
+    extras_require={
+        'rhvoice': ['rhvoice-wrapper-bin'],
+    },
     classifiers=[
         'Intended Audience :: Developers',
         'Programming Language :: Python :: 3',
