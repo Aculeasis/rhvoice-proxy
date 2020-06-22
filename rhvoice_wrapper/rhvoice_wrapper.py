@@ -25,24 +25,6 @@ DEFAULT_CHUNK_SIZE = 1024 * 4
 DEFAULT_FORMAT = 'wav'
 
 
-def _prepare_synthesis_params(old: dict, data: dict):
-    def _set():
-        if key in old and old[key] != val:
-            old[key] = val
-            return True
-        return False
-
-    adv = {'punctuation_mode': 3, 'capitals_mode': 4, 'flags': 1}
-    change = False
-    for key, val in data.items():
-        if key in adv:
-            if isinstance(val, int) and 0 <= val <= adv[key]:
-                change |= _set()
-        elif isinstance(val, (int, float)) and -2 <= val <= 2.5:
-            change |= _set()
-    return change
-
-
 class _WaveWrite(wave.Wave_write):
     def _ensure_header_written(self, _):
         pass
@@ -203,7 +185,6 @@ class _BaseTTS:
         self._format = DEFAULT_FORMAT
         self._chunk_size = DEFAULT_CHUNK_SIZE
         self._engine = None
-        self._synthesis_param = None
         self._worker = _AudioWorker(cmd=cmd, pipe=pipe)
         self._work = True
         self._client_here = threading.Event()
@@ -211,26 +192,9 @@ class _BaseTTS:
         self._generator_work = threading.Event()
         self._generator_work.set()
         self._still_processing = False
-        self._rollback_sets = None
-
-    def _change_sets(self, sets: dict or None):
-        if not sets:
-            return
-        old_params = self._synthesis_param.copy()
-        if _prepare_synthesis_params(self._synthesis_param, sets):
-            self._engine.set_params(**self._synthesis_param)
-            if self._rollback_sets is None:
-                self._rollback_sets = old_params
-
-    def _restore_sets(self):
-        if self._rollback_sets:
-            self._synthesis_param = self._rollback_sets
-            self._engine.set_params(**self._synthesis_param)
-            self._rollback_sets = None
 
     def _engine_init(self):
         self._engine = rhvoice_proxy.Engine(**self._lib_path)
-        self._synthesis_param = self._engine.synthesis_set.copy()  # Current params
         self._engine.init(self._speech_callback, self._sr_callback, **self._kwargs)
 
     def _engine_destroy(self):
@@ -319,25 +283,31 @@ class _BaseTTS:
         if buffer:
             yield buffer
 
+    def _get_temporary_params(self, sets):
+        try:
+            return self._engine.params.copy_with(sets)
+        except Exception as e:
+            print('sets error: {}'.format(e))
+        return None
+
     def _generate(self, text, voice, format_, chunk_size, sets):
         self._generator_work.clear()
-        self._change_sets(sets)
         self._format = format_
         self._chunk_size = chunk_size or DEFAULT_CHUNK_SIZE
         if voice:
             self._engine.set_voice(voice)
+        params = self._get_temporary_params(sets) if sets else None
         try:
             if isinstance(text, str):
-                self._engine.generate(text)
+                self._engine.generate(text=text, params=params)
             elif isinstance(text, Iterable):
                 for chunk in text:
-                    self._engine.generate(chunk)
+                    self._engine.generate(chunk, params=params)
         except RuntimeError:
             pass
         self._still_processing = False
         if not self._worker.end_processing():
             self._wait.set()
-        self._restore_sets()
         self._release_busy()
 
     def run(self):
@@ -347,7 +317,6 @@ class _BaseTTS:
             if data is None:
                 break
             if isinstance(data, dict):
-                self._synthesis_param = data
                 self._engine.set_params(**data)
             else:
                 self._generate(*data)
@@ -497,7 +466,7 @@ class TTS:
             )
         test.init(play_speech_cb=lambda *_: True, set_sample_rate_cb=lambda *_: True, **envs2)
         self._voices = test.voices
-        self._synth_set = test.synthesis_set.copy()
+        self._params = test.params
         del test
 
         tts = MultiTTS(self._threads, self._process, self._cmd, self._formats, **envs)
@@ -540,16 +509,19 @@ class TTS:
         return self._cmd
 
     def set_params(self, **kwargs):
-        if _prepare_synthesis_params(self._synth_set, kwargs):
-            self.__set_params(**self._synth_set)
-            return True
-        else:
-            return False
+        result = False
+        try:
+            result = self._params.update_from_dict(kwargs)
+        except RuntimeError as e:
+            print('set_params error: {}'.format(e))
+        if result:
+            self.__set_params(**kwargs)
+        return result
 
     def get_params(self, param=None):
         if param is None:
-            return self._synth_set.copy()
-        return self._synth_set.get(param)
+            return self._params.to_dict()
+        return self._params.get_param(param)
 
     def _get_environs(self, kwargs):
         result = {}

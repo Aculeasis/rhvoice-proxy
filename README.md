@@ -90,7 +90,7 @@ Changes voice synthesizer settings:
 ```python
 tts.set_params(**kwargs)
 ```
-Allow: `absolute_rate, relative_rate, absolute_pitch, relative_pitch, absolute_volume, relative_volume, punctuation_mode, capitals_mode`. See RHVoice documentation for details.
+Allow: `voice_profile`, `absolute_rate`, `absolute_pitch`, `absolute_volume`, `relative_rate`, `relative_pitch`, `relative_volume`, `punctuation_mode`, `punctuation_list`, `capitals_mode`, `flags`. See RHVoice documentation for details.
 
 Return `True` if change, else `False`.
 
@@ -99,7 +99,7 @@ Get voice synthesizer settings:
 ```python
 tts.get_params(param=None)
 ```
-If param is `None` return all settings in `dict`, else parameter value by name as `numeric`. If parameter not found return `None`.
+If param is `None` return all settings in `dict`, else parameter value by name. If parameter not found return `None`.
 
 #### join
 Join thread or processes. Don't use object after join:

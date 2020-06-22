@@ -313,34 +313,140 @@ def get_voices(lib, engine, api) -> dict:
     return voices
 
 
-SYNTHESIS_SET_100 = {
-        'absolute_rate': 0,
-        'relative_rate': 1,
-        'absolute_pitch': 0,
-        'relative_pitch': 1,
-        'absolute_volume': 0,
-        'relative_volume': 1,
-        'punctuation_mode': RHVoice_punctuation_mode.default,
-        'capitals_mode': RHVoice_capitals_mode.default
+class SynthesisParams:
+    # magic?
+    MIN_BASE = -2
+    MAX_BASE = 2.5
+    # from 0 to X, int
+    MAX_PUNCTUATION = 3
+    MAX_CAPITALS = 4
+    MAX_FLAGS = 1
+    #
+    DEFAULT_VOICE = b'Anna'
+    CHECKS = None
+
+    def __init__(self, api: tuple, params: dict or None = None):
+        self.api = api
+        self.synth_params = RHVoice_synth_params(self.api)()
+        if params:
+            self.update_from_dict(params)
+        else:
+            self._set_default()
+
+    def update_from_dict(self, params: dict) -> bool:
+        is_change = False
+        for key, value in params.items():
+            try:
+                old_value = getattr(self.synth_params, key)
+            except AttributeError:
+                continue
+            if key not in self.CHECKS:
+                continue
+            try:
+                new_value = self.CHECKS[key][1](value)
+            except Exception as e:
+                raise RuntimeError('Wrong value from {}: {}'.format(key, e))
+            if old_value == new_value:
+                continue
+            setattr(self.synth_params, key, new_value)
+            is_change = True
+        return is_change
+
+    def get_param(self, key):
+        try:
+            return self._get_param(key)
+        except AttributeError:
+            return None
+
+    def to_dict(self) -> dict:
+        result = {}
+        for key in self.CHECKS:
+            try:
+                result[key] = self._get_param(key)
+            except AttributeError:
+                pass
+        return result
+
+    def copy_with(self, params: dict):
+        result = SynthesisParams(self.api)
+        result.update_from_dict(params)
+        return result
+
+    def _set_default(self):
+        for key in self.CHECKS:
+            if hasattr(self.synth_params, key):
+                setattr(self.synth_params, key, self.CHECKS[key][0])
+
+    def _get_param(self, key):
+        result = getattr(self.synth_params, key)
+        return result.decode() if isinstance(result, bytes) else result
+
+    @classmethod
+    def _pass_voice(cls, voices: str or list) -> bytes:
+        if not isinstance(voices, list):
+            voices = [voices]
+        voices = '+'.join([x.capitalize() for x in voices[:2] if x])
+        return voices.encode() if voices else cls.DEFAULT_VOICE
+
+    @classmethod
+    def _pass_base(cls, value: int or float) -> int or float:
+        """MIN_BASE <= val <= MAX_BASE"""
+        if value > cls.MAX_BASE:
+            raise TypeError('{} > {}'.format(value, cls.MAX_BASE))
+        if value < cls.MIN_BASE:
+            raise TypeError('{} < {}'.format(value, cls.MIN_BASE))
+        return value
+
+    @classmethod
+    def __pass_enum(cls, value: int, max_: int) -> int:
+        """0 <= val <= max_"""
+        if not isinstance(value, int):
+            raise TypeError('Must be int, get {}'.format(type(value)))
+        if value > max_:
+            raise TypeError('{} > {}'.format(value, max_))
+        if value < 0:
+            raise TypeError('{} < 0'.format(value))
+        return value
+
+    @classmethod
+    def _pass_punctuation_mode(cls, value: int) -> int:
+        return cls.__pass_enum(value, cls.MAX_PUNCTUATION)
+
+    @classmethod
+    def _pass_capitals_mode(cls, value: int) -> int:
+        return cls.__pass_enum(value, cls.MAX_CAPITALS)
+
+    @classmethod
+    def _pass_flags(cls, value: int) -> int:
+        return cls.__pass_enum(value, cls.MAX_FLAGS)
+
+    @classmethod
+    def _pass_punctuation_list(cls, punctuation_list: str or None) -> bytes or None:
+        return punctuation_list.encode() if punctuation_list else None
+
+
+# noinspection PyProtectedMember
+SynthesisParams.CHECKS = {
+    # key: (default value, check+validation function)
+    'voice_profile': (SynthesisParams.DEFAULT_VOICE, SynthesisParams._pass_voice),
+    'absolute_rate': (0, SynthesisParams._pass_base),
+    'absolute_pitch': (0, SynthesisParams._pass_base),
+    'absolute_volume': (0, SynthesisParams._pass_base),
+    'relative_rate': (1, SynthesisParams._pass_base),
+    'relative_pitch': (1, SynthesisParams._pass_base),
+    'relative_volume': (1, SynthesisParams._pass_base),
+    'punctuation_mode': (RHVoice_punctuation_mode.default, SynthesisParams._pass_punctuation_mode),
+    'punctuation_list': (None, SynthesisParams._pass_punctuation_list),
+    'capitals_mode': (RHVoice_capitals_mode.default, SynthesisParams._pass_capitals_mode),
+    'flags': (int(not RHVoice_synth_flag.dont_clip_rate), SynthesisParams._pass_flags),
     }
-SYNTHESIS_SET_120 = SYNTHESIS_SET_100.copy()
-SYNTHESIS_SET_120.update(flags=int(not RHVoice_synth_flag.dont_clip_rate))
-
-
-def get_synthesis_set(api: tuple) -> dict:
-    if api < (1, 2, 0):
-        return SYNTHESIS_SET_100
-    return SYNTHESIS_SET_120
 
 
 class Engine:
     def __init__(self, lib_path=_LIB_PATH, api=None):
         self._lib, self._api = load_tts_library(lib_path, api)
-        self.synthesis_set = get_synthesis_set(self._api)
+        self.params = SynthesisParams(self._api)
         self._engine = None
-        self._synth_params = None
-        self._voice_profile = b'Anna'
-        self.set_params(**self.synthesis_set)
         self.__save_me = None
 
     @property
@@ -361,19 +467,13 @@ class Engine:
         return get_voices(self._lib, self._engine, self._api)
 
     def set_voice(self, voices: str or list):
-        if not isinstance(voices, list):
-            voices = [voices]
-        voices = '+'.join([x.capitalize() for x in voices[:2] if x]) or 'Anna'
-        self._voice_profile = voices.encode()
-        self._synth_params.voice_profile = self._voice_profile
+        self.set_params(voice_profile=voices)
 
-    def generate(self, text):
-        speak_generate(self._lib, text, self._synth_params, self._engine)
+    def generate(self, text, params: SynthesisParams = None):
+        speak_generate(self._lib, text, (params or self.params).synth_params, self._engine)
 
     def set_params(self, **kw):
-        val = kw.copy()
-        val.update(voice_profile=self._voice_profile, punctuation_list=None)
-        self._synth_params = RHVoice_synth_params(self._api)(**val)
+        self.params.update_from_dict(kw)
 
     def exterminate(self):
         if self._engine:
