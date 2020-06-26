@@ -117,11 +117,13 @@ class Monolithic(unittest.TestCase):
         self.assertGreater(self.sizes[self.files['wav']], 0)
 
     def step_050_sets_recovery(self):
-        sets = {'absolute_rate': 0.5}
-        wav1 = say_size(self.tts.say, text=self.msg, voice=self.voice, format_='wav', sets=sets)
-        wav2 = say_size(self.tts.say, text=self.msg, voice=self.voice, format_='wav')
+        sets = {'absolute_rate': 0.5, 'absolute_pitch': -0.5}
+        wav1 = say_size(self.tts.say, text=self.msg, voice=self.voice, format_='wav')
+        wav2 = say_size(self.tts.say, text=self.msg, voice=self.voice, format_='wav', sets=sets)
+        wav3 = say_size(self.tts.say, text=self.msg, voice=self.voice, format_='wav')
 
         self.assertNotEqual(wav1, wav2)
+        self.assertEqual(wav1, wav3)
 
     def step_05_other_files(self):
         for target in [val for key, val in self.files.items() if key not in ['wav_base', 'wav']]:
