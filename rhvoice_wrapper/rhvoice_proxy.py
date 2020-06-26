@@ -124,27 +124,26 @@ class SynthesisParams(_SynthesisCheck):
             return None
 
     def to_dict(self) -> dict:
-        result = {}
-        for key in self.CHECKS:
-            try:
-                result[key] = self._get_param(key)
-            except AttributeError:
-                pass
-        return result
+        return {key: self._get_param(key) for key in self._synth_params_keys()}
 
     def copy_with(self, params: dict):
-        result = SynthesisParams(self.api)
-        result.update_from_dict(params)
+        result = SynthesisParams(self.api, params=self.to_dict())
+        if params:
+            result.update_from_dict(params)
         return result
 
     def _set_default(self):
-        for key in self.CHECKS:
-            if hasattr(self.synth_params, key):
-                setattr(self.synth_params, key, self.CHECKS[key][0])
+        for key in self._synth_params_keys():
+            setattr(self.synth_params, key, self.CHECKS[key][0])
 
     def _get_param(self, key):
         result = getattr(self.synth_params, key)
         return result.decode() if isinstance(result, bytes) else result
+
+    def _synth_params_keys(self):
+        # noinspection PyProtectedMember
+        for key, _ in self.synth_params._fields_:
+            yield key
 
 
 class Engine:
