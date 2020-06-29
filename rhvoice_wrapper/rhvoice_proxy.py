@@ -215,9 +215,6 @@ class Engine:
             }
         return voices
 
-    def set_voice(self, voices: str or list):
-        self.set_params(voice_profile=voices)
-
     def generate(self, text, params: SynthesisParams = None):
         text = text.encode()
         synth_params = (params or self.params).synth_params

@@ -233,9 +233,12 @@ class _BaseTTS:
     def _client_request(self, text, voice, format_, chunk_size, sets):
         if format_ not in self._allow_formats:
             raise RuntimeError('Unsupported format: {}'.format(format_))
-        if sets is not None and not isinstance(sets, dict):
+        sets = sets or {}
+        if not isinstance(sets, dict):
             RuntimeError('Sets must be dict or None')
-        self._pipe.put((text, voice, format_, chunk_size, sets))
+        if voice:
+            sets['voice_profile'] = voice
+        self._pipe.put((text, format_, chunk_size, sets))
         self._wait.wait(3600)
         self._wait.clear()
 
@@ -290,12 +293,10 @@ class _BaseTTS:
             print('sets error: {}'.format(e))
         return None
 
-    def _generate(self, text, voice, format_, chunk_size, sets):
+    def _generate(self, text, format_, chunk_size, sets):
         self._generator_work.clear()
         self._format = format_
         self._chunk_size = chunk_size or DEFAULT_CHUNK_SIZE
-        if voice:
-            self._engine.set_voice(voice)
         params = self._get_temporary_params(sets) if sets else None
         try:
             if isinstance(text, str):
@@ -367,10 +368,10 @@ class MultiTTS:
         self._lock = threading.Lock()
         self._work = True
 
-    def to_file(self, filename: str, text: str, voice='anna', format_=DEFAULT_FORMAT, sets=None):
+    def to_file(self, filename: str, text: str, voice=None, format_=None, sets=None):
         return self._caller().to_file(filename, text, voice, format_, sets)
 
-    def say(self, text: str, voice='anna', format_=DEFAULT_FORMAT, buff=DEFAULT_CHUNK_SIZE, sets=None):
+    def say(self, text: str, voice=None, format_=None, buff=DEFAULT_CHUNK_SIZE, sets=None):
         return self._caller().say(text, voice, format_, buff, sets)
 
     def _caller(self):
