@@ -4,8 +4,14 @@ from setuptools import setup
 
 
 def get_version() -> str:
+    version_file = 'version'
+
+    def version_to_file(ver):
+        with open(version_file, mode='w') as fd:
+            fd.write(ver)
+
     def version_from_file():
-        with open('version') as fd:
+        with open(version_file) as fd:
             return fd.read().splitlines()[0]
 
     def version_from_git():
@@ -19,6 +25,8 @@ def get_version() -> str:
     if not version:
         version = version_from_file()
         print('WARNING! Get version from a file: {}'.format(version))
+    else:
+        version_to_file(version)
     return version
 
 
