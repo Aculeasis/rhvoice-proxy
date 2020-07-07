@@ -21,8 +21,6 @@ matrix:
     - PYTHON: C:\Python37
     - PYTHON: C:\Python37-x64
 
-clone_depth: 1
-
 build: off
 
 init:

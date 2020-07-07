@@ -25,9 +25,6 @@ matrix:
 sudo:
   true
 
-git:
-  depth: 1
-
 before_install:
   - |
     if [ "$TRAVIS_OS_NAME" == "linux" ]; then
