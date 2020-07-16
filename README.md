@@ -16,7 +16,7 @@ Supported audio formats: `wav`, `mp3`, `opus`, `flac` and `pcm` (raw RHVoice out
 ## Install
 `pip3 install rhvoice-wrapper`
 
-This package **NOT** provide [RHvoice](https://github.com/Olga-Yakovleva/RHVoice). You must be build (or install) RHVoice, languages and voices manually. In Windows you must specify the paths for work.
+This package **NOT** provide [RHVoice](https://github.com/Olga-Yakovleva/RHVoice). You must be build (or install) RHVoice, languages and voices manually. In Windows you must specify the paths for work.
 
 #### rhvoice-wrapper-bin
 **Warning**! `rhvoice-wrapper-bin` not working in **macOS**, install RHVoice manually.
@@ -123,9 +123,9 @@ tts.join()
 
 ## Requirements
 - OS: Linux, Windows, macOS
-- RHvoice library, languages and voices
+- RHVoice library, languages and voices
 - Python 3.4 +
 
 ## Links
-- [RHvoice](https://github.com/Olga-Yakovleva/RHVoice)
+- [RHVoice](https://github.com/Olga-Yakovleva/RHVoice)
 - [rhvoice-wrapper-bin](https://github.com/Aculeasis/rhvoice-wrapper-bin)

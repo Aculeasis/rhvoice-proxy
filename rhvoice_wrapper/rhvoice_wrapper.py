@@ -175,21 +175,22 @@ class _AudioWorker:
 class _BaseTTS:
     RELEASE_TIMEOUT = 3
 
-    def __init__(self, pipe: _StreamPipe, free, cmd: dict, allow_formats: frozenset, **kwargs):
+    def __init__(self, is_multiprocessing: bool, free, cmd: dict, allow_formats: frozenset, **kwargs):
+        _event = multiprocessing.Event if is_multiprocessing else threading.Event
         self._free = free
         self._allow_formats = allow_formats
         self._kwargs = kwargs.copy()
         self._lib_path = {} if 'lib_path' not in self._kwargs else {'lib_path': self._kwargs.pop('lib_path')}
-        self._wait = threading.Event()
-        self._pipe = _Pipe()
+        self._wait = _event()
+        self._pipe = _Pipe(is_multiprocessing=is_multiprocessing)
         self._format = DEFAULT_FORMAT
         self._chunk_size = DEFAULT_CHUNK_SIZE
         self._engine = None
-        self._worker = _AudioWorker(cmd=cmd, pipe=pipe)
+        self._worker = _AudioWorker(cmd=cmd, pipe=_StreamPipe(is_multiprocessing=is_multiprocessing))
         self._work = True
-        self._client_here = threading.Event()
+        self._client_here = _event()
         self._client_here.set()
-        self._generator_work = threading.Event()
+        self._generator_work = _event()
         self._generator_work.set()
         self._still_processing = False
 
@@ -323,34 +324,31 @@ class _BaseTTS:
                 self._generate(*data)
         self._engine_destroy()
 
+    def stop(self):
+        if self._work:
+            self._work = False
+            self._pipe.put(None)
+
 
 class ThreadTTS(_BaseTTS, threading.Thread):
     def __init__(self, *args, **kwargs):
         threading.Thread.__init__(self)
-        _BaseTTS.__init__(self, _StreamPipe(), *args, **kwargs)
+        _BaseTTS.__init__(self, False, *args, **kwargs)
         self.start()
 
     def join(self, timeout=None):
-        self._work = False
-        self._pipe.put(None)
+        self.stop()
         super().join()
 
 
 class ProcessTTS(_BaseTTS, multiprocessing.Process):
     def __init__(self, *args, **kwargs):
         multiprocessing.Process.__init__(self)
-        _BaseTTS.__init__(self, _StreamPipe(True), *args, **kwargs)
-        self._wait = multiprocessing.Event()
-        self._pipe = _Pipe(True)
-        self._client_here = multiprocessing.Event()
-        self._client_here.set()
-        self._generator_work = multiprocessing.Event()
-        self._generator_work.set()
+        _BaseTTS.__init__(self, True, *args, **kwargs)
         self.start()
 
     def join(self, timeout=None):
-        self._work = False
-        self._pipe.put(None)
+        self.stop()
         super().join()
 
 
@@ -375,8 +373,7 @@ class MultiTTS:
         return self._caller().say(text, voice, format_, buff, sets)
 
     def _caller(self):
-        self._lock.acquire()
-        try:
+        with self._lock:
             while True:
                 self._free.clear()
                 for worker in self._workers:
@@ -385,8 +382,6 @@ class MultiTTS:
                         return worker
                 if not self._free.wait(self.TIMEOUT):
                     raise RuntimeError('Still busy')
-        finally:
-            self._lock.release()
 
     def set_params(self, **kwargs):
         for worker in self._workers:
@@ -396,6 +391,7 @@ class MultiTTS:
         if not self._work:
             return
         self._work = False
+        [x.stop() for x in self._workers]
         [x.join() for x in self._workers]
 
 
