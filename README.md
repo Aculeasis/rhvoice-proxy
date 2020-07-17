@@ -124,7 +124,7 @@ tts.join()
 
 ## Requirements
 - OS: Linux, Windows, macOS
-- RHVoice library 0.7.1 or above, languages and voices
+- RHVoice library 0.7.2 or above, languages and voices
 - Python 3.4 +
 
 ## Links
