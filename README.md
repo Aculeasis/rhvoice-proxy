@@ -112,6 +112,7 @@ tts.join()
 - `TTS.thread_count`: Number of synthesis threads.
 - `TTS.process`: If `True`, TTS running in multiprocessing mode.
 - `TTS.voices`: List of supported voices.
+- `TTS.voice_profiles`: List of supported voice profiles.
 - `TTS.voices_info`: Dictionary of supported voices with voices information. 
 - `TTS.api_version`: Supported RHVoice library version. If different from `lib_version`, may incorrect work.
 - `TTS.lib_version`: RHVoice library version.
@@ -123,7 +124,7 @@ tts.join()
 
 ## Requirements
 - OS: Linux, Windows, macOS
-- RHVoice library, languages and voices
+- RHVoice library 0.7.1 or above, languages and voices
 - Python 3.4 +
 
 ## Links

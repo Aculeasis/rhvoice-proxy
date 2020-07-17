@@ -47,6 +47,9 @@ class ThChecker(threading.Thread):
 
 
 class Monolithic(unittest.TestCase):
+    MSG = 'Я умею сохранять свой голос в {}'
+    COUNTRY = 'RU'
+
     def step_00_init(self):
         all_formats = ['pcm', 'wav', 'mp3', 'opus', 'flac']
         self.files = {'wav_base': 'wav_engine'}
@@ -54,8 +57,6 @@ class Monolithic(unittest.TestCase):
         self.files2 = {key: '{}_2'.format(key) for key in all_formats}
 
         self.sizes = {}
-        self.msg = 'Я умею сохранять свой голос в {}'
-        self.voice = 'anna'
         self.wav_size = None
 
         self.engine = rhvoice_proxy.Engine()
@@ -63,7 +64,7 @@ class Monolithic(unittest.TestCase):
         self.engine.init(self.wave, self.wave.set_sample_rate)
         self.tts = TTS(quiet=True)
 
-    def step_01_info(self):
+    def step_010_info(self):
         print()
         print('Versions:')
         print(' RHVoice:    {}'.format(self.engine.version))
@@ -71,6 +72,7 @@ class Monolithic(unittest.TestCase):
         print()
 
         voices = self.engine.voices
+        voice_profiles = self.engine.voice_profiles
         name_len = 5
         voice_order = []
         for v in sorted(voices.items(), key=lambda x: x[1]['no']):
@@ -83,24 +85,41 @@ class Monolithic(unittest.TestCase):
             voice = voices[voice_order[i]]
             print(line.format(**voice))
         print('Number of voices: {}'.format(len(voices)))
+        print('Voice profiles: {} [{}]'.format(', '.join(voice_profiles), len(voice_profiles)))
         print('Formats: {} ... '.format(', '.join(self.tts.formats)), end='')
+
+    def step_011_voice(self):
+        default_voice = 'Anna'
+        maybe = set(self.tts.voice_profiles)
+        candidates = set()
+        for voice in self.tts.voices_info.values():
+            if voice['country'] in (self.COUNTRY, 'NaN'):
+                for item in maybe:
+                    if voice['name'] in item.split('+'):
+                        candidates.add(item)
+                maybe -= candidates
+        self.voice = default_voice if default_voice in candidates else candidates.pop() if candidates else None
+        print()
+        print('Candidates: {}'.format(', '.join(candidates)))
+        print('Selected voice: {}'.format(self.voice))
+        self.assertIsNotNone(self.voice, 'Compatible voice profile not found')
 
     def step_02_engine(self):
         self.assertGreater(len(self.engine.voices), 0)
-        self.assertIn(self.voice, self.engine.voices)
+        self.assertIn(self.voice, self.engine.voice_profiles)
         self.engine.set_params(voice_profile=self.voice)
 
-        self.engine.generate(self.msg.format('wav'))
+        self.engine.generate(self.MSG.format('wav'))
         self.sizes[self.files['wav_base']] = self.wave.size
         del self.wave
 
     def step_030_tts(self):
         self.assertGreater(len(self.tts.voices), 0)
-        self.assertIn(self.voice, self.tts.voices)
+        self.assertIn(self.voice, self.tts.voice_profiles)
         for target in [[key, val] for key, val in self.files.items() if key in self.tts.formats]:
             self.sizes[target[1]] = say_size(
                 self.tts.say,
-                text=self.msg.format(target[0]),
+                text=self.MSG.format(target[0]),
                 voice=self.voice,
                 format_=target[0]
             )
@@ -118,9 +137,9 @@ class Monolithic(unittest.TestCase):
 
     def step_050_sets_recovery(self):
         sets = {'absolute_rate': 0.5, 'absolute_pitch': -0.5}
-        wav1 = say_size(self.tts.say, text=self.msg, voice=self.voice, format_='wav')
-        wav2 = say_size(self.tts.say, text=self.msg, voice=self.voice, format_='wav', sets=sets)
-        wav3 = say_size(self.tts.say, text=self.msg, voice=self.voice, format_='wav')
+        wav1 = say_size(self.tts.say, text=self.MSG, voice=self.voice, format_='wav')
+        wav2 = say_size(self.tts.say, text=self.MSG, voice=self.voice, format_='wav', sets=sets)
+        wav3 = say_size(self.tts.say, text=self.MSG, voice=self.voice, format_='wav')
 
         self.assertNotEqual(wav1, wav2)
         self.assertEqual(wav1, wav3)
@@ -142,7 +161,7 @@ class Monolithic(unittest.TestCase):
         for target in [[key, val] for key, val in self.files2.items() if key in self.tts.formats]:
             self.sizes[target[1]] = say_size(
                 self.tts.say,
-                text=self.msg.format(target[0]),
+                text=self.MSG.format(target[0]),
                 voice=self.voice,
                 format_=target[0]
             )
@@ -202,7 +221,7 @@ class Monolithic(unittest.TestCase):
             if sets:
                 current_set = sets[pos]
                 pos += 1
-            kwargs = {'text': self.msg, 'voice': self.voice, 'format_': format_, 'buff': buff, 'sets': current_set}
+            kwargs = {'text': self.MSG, 'voice': self.voice, 'format_': format_, 'buff': buff, 'sets': current_set}
             buff += 256
             ths[x] = ThChecker(self.tts.say, kwargs)
         for key, val in ths.items():

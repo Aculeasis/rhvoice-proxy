@@ -464,6 +464,7 @@ class TTS:
         test.init(play_speech_cb=lambda *_: True, set_sample_rate_cb=lambda *_: True, **envs2)
         self._voices = test.voices
         self._params = test.params
+        self._voice_profiles = test.voice_profiles
         del test
 
         tts = MultiTTS(self._threads, self._process, self._cmd, self._formats, **envs)
@@ -474,38 +475,42 @@ class TTS:
         self.join = tts.join
 
     @property
-    def formats(self):
+    def formats(self) -> frozenset:
         return self._formats
 
     @property
-    def thread_count(self):
+    def thread_count(self) -> int:
         return self._threads
 
     @property
-    def process(self):
+    def process(self) -> bool:
         return self._process
 
     @property
-    def voices(self):
+    def voices(self) -> tuple:
         return tuple([key for key in self._voices])
 
     @property
-    def api_version(self):
+    def voice_profiles(self) -> tuple:
+        return self._voice_profiles
+
+    @property
+    def api_version(self) -> str:
         return self._api
 
     @property
-    def lib_version(self):
+    def lib_version(self) -> str:
         return self._version
 
     @property
-    def voices_info(self):
+    def voices_info(self) -> dict:
         return self._voices
 
     @property
-    def cmd(self):
+    def cmd(self) -> dict:
         return self._cmd
 
-    def set_params(self, **kwargs):
+    def set_params(self, **kwargs) -> bool:
         result = False
         try:
             result = self._params.update_from_dict(kwargs)

@@ -196,9 +196,8 @@ class Engine:
         are voice properties.
         """
         voices = dict()
-        voices_total = self._lib.RHVoice_get_number_of_voices(self._engine)
         voices_raw = self._lib.RHVoice_get_voices(self._engine)
-        for number in range(voices_total):
+        for number in range(self._lib.RHVoice_get_number_of_voices(self._engine)):
             vi = voices_raw[number]
             try:
                 name = vi.name.decode()
@@ -214,6 +213,17 @@ class Engine:
                 'country': 'NaN' if self._api < (1, 0, 0) or not vi.country else vi.country.decode(errors='replace')
             }
         return voices
+
+    @property
+    def voice_profiles(self) -> tuple:
+        result = list()
+        profiles_raw = self._lib.RHVoice_get_voice_profiles(self._engine)
+        for number in range(self._lib.RHVoice_get_number_of_voice_profiles(self._engine)):
+            try:
+                result.append(profiles_raw[number].decode())
+            except UnicodeDecodeError:
+                pass
+        return tuple(result)
 
     def generate(self, text, params: SynthesisParams = None):
         text = text.encode()
