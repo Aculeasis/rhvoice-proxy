@@ -9,14 +9,14 @@
 Generate speech stream from text without re-initializing engine.
 This very fast and more convenient than call RHVoice-test.
 
-Supported RHVoice library versions: `0.7.2`, `1.0.0` and `1.2.0`.
+Supported [RHVoice](https://github.com/Olga-Yakovleva/RHVoice) library versions: `0.7.2`, `1.0.0` and `1.2.0`.
 
 Supported audio formats: `wav`, `mp3`, `opus`, `flac` and `pcm` (raw RHVoice output).
 
 ## Install
 `pip3 install rhvoice-wrapper`
 
-This package **NOT** provide [RHVoice](https://github.com/Olga-Yakovleva/RHVoice). You must be build (or install) RHVoice, languages and voices manually. In Windows you must specify the paths for work.
+This package **NOT** provide RHVoice. You must be build (or install) RHVoice, languages and voices manually. In Windows you must specify the paths for work.
 
 #### rhvoice-wrapper-bin
 **Warning**! `rhvoice-wrapper-bin` not working in **macOS**, install RHVoice manually.
@@ -126,7 +126,3 @@ tts.join()
 - OS: Linux, Windows, macOS
 - RHVoice library 0.7.2 or above, languages and voices
 - Python 3.4 +
-
-## Links
-- [RHVoice](https://github.com/Olga-Yakovleva/RHVoice)
-- [rhvoice-wrapper-bin](https://github.com/Aculeasis/rhvoice-wrapper-bin)
