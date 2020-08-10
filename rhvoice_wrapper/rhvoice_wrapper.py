@@ -541,8 +541,8 @@ class TTS(MultiTTS):
         self._formats = frozenset(['pcm', 'wav'] + [key for key in self._cmd])
 
         self.__test_engine(envs.copy(), quiet)
-
-        super().__init__(self._threads, self._process, self._cmd, self._formats, **envs, stream=stream)
+        envs.update(stream=stream)
+        super().__init__(self._threads, self._process, self._cmd, self._formats, **envs)
 
     def __test_engine(self, envs: dict, quiet: bool):
         lib_path = {} if 'lib_path' not in envs else {'lib_path': envs.pop('lib_path')}

@@ -65,6 +65,11 @@ Or just save to file:
 ```python
 tts.to_file(filename='esperanto.ogg', text='Saluton mondo', voice='spomenka', format_='opus', sets=None)
 ```
+`format_` is output audio format. Must be present in `tts.formats`.
+
+`voice` is a voice of speaker. Must be present in `tts.voice_profiles` or `tts.voices`.
+`voice='Voice', sets=None` equal `voice=None, sets={'voice_profile': 'Voice'}`, `voice` more priority.
+
 `sets` may set as dict containing synthesis parameters as in [set_params](#set_params).
 This parameters only work for current phrase. Default `None`.
 
