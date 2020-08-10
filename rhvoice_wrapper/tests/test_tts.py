@@ -128,12 +128,17 @@ class Monolithic(unittest.TestCase):
         size = say_size(self.tts.say, text='', format_='wav')
         self.assertEqual(size, 0, 'No text - no audio. Return {} bytes'.format(size))
 
-    def step_04_wave(self):
+    def step_040_wave(self):
         self.assertTrue(self.files['wav_base'] in self.sizes)
         self.assertTrue(self.files['wav'] in self.sizes)
 
         self.assertEqual(self.sizes[self.files['wav_base']], self.sizes[self.files['wav']])
         self.assertGreater(self.sizes[self.files['wav']], 0)
+
+    def step_041_say_get(self):
+        say = say_size(self.tts.say, text=self.MSG, voice=self.voice, format_='wav')
+        get = len(self.tts.get(text=self.MSG, voice=self.voice, format_='wav'))
+        self.assertEqual(say, get, '.say and get size must be equal.')
 
     def step_050_sets_recovery(self):
         sets = {'absolute_rate': 0.5, 'absolute_pitch': -0.5}
@@ -176,7 +181,7 @@ class Monolithic(unittest.TestCase):
 
     def step_080_processes_create(self):
         self.tts.join()
-        self.clear_sizes()
+        self.sizes = {}
         self.tts = TTS(threads=3, quiet=True)
 
     def step_081_processes_init(self):
@@ -209,7 +214,7 @@ class Monolithic(unittest.TestCase):
         data_size = self._processes_eq_size()
         if self.wav_size is not None:
             self.assertGreater(self.wav_size, data_size, 'wav must be more {}'.format(format_))
-        self.clear_sizes()
+        self.sizes = {}
         return data_size
 
     def _test_processes_format(self, format_, sets=None):
@@ -248,11 +253,19 @@ class Monolithic(unittest.TestCase):
         self._test_processes_format('wav', volumes)
         self._processes_diff_size()
 
-    def clear_sizes(self):
-        self.sizes = {}
-
     def step_11_join(self):
         self.tts.join()
+
+    def step_12_no_stream(self):
+        self.tts = TTS(threads=1, quiet=True, force_process=True, stream=False)
+
+        with self.tts.say(text=self.MSG, voice=self.voice, format_='wav', buff=12) as fd:
+            get1_data = [x for x in fd]
+
+        self.tts.join()
+
+        self.assertEqual(len(get1_data), 1)
+        self.assertEqual(len(get1_data[0]), self.wav_size)
 
     def _steps(self):
         for name in sorted(dir(self)):

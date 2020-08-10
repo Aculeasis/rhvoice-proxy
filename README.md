@@ -6,10 +6,8 @@
 [![Build Status](https://travis-ci.org/Aculeasis/rhvoice-proxy.svg?branch=master)](https://travis-ci.org/Aculeasis/rhvoice-proxy)
 [![Build status](https://ci.appveyor.com/api/projects/status/lan2fw4c4xl7pvya/branch/master?svg=true)](https://ci.appveyor.com/project/Aculeasis/rhvoice-proxy)
 
-Generate speech stream from text without re-initializing engine.
+Generate speech stream used [RHVoice](https://github.com/Olga-Yakovleva/RHVoice) library from text without re-initializing engine.
 This very fast and more convenient than call RHVoice-test.
-
-Supported [RHVoice](https://github.com/Olga-Yakovleva/RHVoice) library versions: `0.7.2`, `1.0.0` and `1.2.0`.
 
 Supported audio formats: `wav`, `mp3`, `opus`, `flac` and `pcm` (raw RHVoice output).
 
@@ -47,15 +45,21 @@ Default `False` if threads == 1, else `True`.
 - **opus_path** or **OPUSENCPATH**: Path to `opusenc`, optional. File must be present for `opus` support. Default `opusenc`.
 - **flac_path** or **FLACPATH**: Path to `flac`, optional. File must be present for `flac` support. Default `flac`.
 - **quiet** or **QUIET**: If `True` don't info output. Default `False`.
+- **stream** or **RHVOICESTREAM**: Processing and sending chunks soon as possible, otherwise processing and sending only full data including length: `say` will return one big chunk, formats other than `wav` and `pcm` will be generated much slower. Default `True`.
 
 ### Usage
 Start synthesis generator and get audio data, chunk by chunk:
-
 ```python
 def generator_audio(text, voice='anna', format_='wav', buff=4096, sets=None):
     with tts.say(text, voice, format_, buff, sets) as gen:
         for chunk in gen:
             yield chunk
+```
+Or get all audio data in one big chunk:
+```python
+data = tts.get('Hello world!', format_='wav')
+print('data size: ', len(data), ' bytes')
+subprocess.check_output(['aplay', '-q'], input=data)
 ```
 Or just save to file:
 ```python

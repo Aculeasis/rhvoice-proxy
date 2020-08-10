@@ -10,6 +10,7 @@ import wave
 from collections.abc import Iterable
 from contextlib import contextmanager
 from ctypes import string_at
+from io import BytesIO
 
 from rhvoice_wrapper import rhvoice_proxy
 
@@ -102,17 +103,33 @@ class _StreamPipe:
 
 class _AudioWorker:
     SAMPLE_WIDTH = 2
-    POPEN_TIMEOUT = 10
-    JOIN_TIMEOUT = 10
 
     def __init__(self, cmd: dict, pipe: _StreamPipe):
         self._cmd = cmd
         self._stream = pipe
-        self._wave, self._in_out, self._popen = None, None, None
+        self._wave = None
         self._starting = False
 
         self.get = self._stream.get
         self.qsize = self._stream.qsize
+
+    def start_processing(self, format_, chunk_size, rate=24000):
+        raise NotImplementedError
+
+    def processing(self, samples, count):
+        raise NotImplementedError
+
+    def end_processing(self):
+        raise NotImplementedError
+
+
+class _AudioWorkerStream(_AudioWorker):
+    POPEN_TIMEOUT = 10
+    JOIN_TIMEOUT = 10
+
+    def __init__(self, cmd: dict, pipe: _StreamPipe):
+        super().__init__(cmd, pipe)
+        self._in_out, self._popen = None, None
 
     def start_processing(self, format_, chunk_size, rate=24000):
         self._stream.clear()
@@ -172,6 +189,52 @@ class _AudioWorker:
             return self._stream
 
 
+class _AudioWorkerBlocked(_AudioWorker):
+    def __init__(self, cmd: dict, pipe: _StreamPipe):
+        super().__init__(cmd, pipe)
+        self._file, self._format = None, None
+
+    def start_processing(self, format_, chunk_size, rate=24000):
+        self._stream.clear()
+
+        self._wave, self._format, self._file = None, format_, BytesIO()
+
+        if self._format != 'pcm':
+            self._wave = wave.Wave_write(self._file)
+            self._wave.setnchannels(1)
+            self._wave.setsampwidth(self.SAMPLE_WIDTH)
+            self._wave.setframerate(rate)
+        self._starting = True
+
+    def processing(self, samples, count):
+        data = string_at(samples, count * self.SAMPLE_WIDTH)
+        if self._wave:
+            self._wave.writeframesraw(data)
+        else:
+            self._file.write(data)
+
+    def end_processing(self):
+        if not self._starting:
+            # Генерации не было, надо отпустить клиента
+            self._stream.put(b'')
+            return False
+        if self._wave:
+            self._wave.close()
+        else:
+            self._file.close()
+        if self._format in self._cmd:
+            try:
+                self._stream.put(subprocess.check_output(self._cmd[self._format], input=self._file.getvalue()))
+            except subprocess.CalledProcessError:
+                pass
+        else:
+            self._stream.put(self._file.getvalue())
+        self._file = None
+        self._stream.put(b'')
+        self._starting = False
+        return True
+
+
 class _BaseTTS:
     RELEASE_TIMEOUT = 3
 
@@ -180,13 +243,15 @@ class _BaseTTS:
         self._free = free
         self._allow_formats = allow_formats
         self._kwargs = kwargs.copy()
+        self._is_stream = self._kwargs.pop('stream')
         self._lib_path = {} if 'lib_path' not in self._kwargs else {'lib_path': self._kwargs.pop('lib_path')}
         self._wait = _event()
         self._pipe = _Pipe(is_multiprocessing=is_multiprocessing)
         self._format = DEFAULT_FORMAT
         self._chunk_size = DEFAULT_CHUNK_SIZE
         self._engine = None
-        self._worker = _AudioWorker(cmd=cmd, pipe=_StreamPipe(is_multiprocessing=is_multiprocessing))
+        _worker = _AudioWorkerStream if self._is_stream else _AudioWorkerBlocked
+        self._worker = _worker(cmd=cmd, pipe=_StreamPipe(is_multiprocessing=is_multiprocessing))
         self._work = True
         self._client_here = _event()
         self._client_here.set()
@@ -247,8 +312,17 @@ class _BaseTTS:
     def say(self, text, voice, format_, buff, sets):
         try:
             format_ = format_ or DEFAULT_FORMAT
+            buff = buff if self._is_stream else None
             self._client_request(text, voice, format_, buff, sets)
             yield self._iter_me_splitting(buff) if format_ in ['pcm', 'wav'] and buff else self._iter_me()
+        finally:
+            self._client_here.set()
+
+    def get(self, text, voice, format_, sets) -> bytes:
+        format_ = format_ or DEFAULT_FORMAT
+        try:
+            self._client_request(text, voice, format_, DEFAULT_CHUNK_SIZE, sets)
+            return b''.join(self._iter_me())
         finally:
             self._client_here.set()
 
@@ -314,15 +388,17 @@ class _BaseTTS:
 
     def run(self):
         self._engine_init()
-        while self._work:
-            data = self._pipe.get()
-            if data is None:
-                break
-            if isinstance(data, dict):
-                self._engine.set_params(**data)
-            else:
-                self._generate(*data)
-        self._engine_destroy()
+        try:
+            while self._work:
+                data = self._pipe.get()
+                if data is None:
+                    break
+                if isinstance(data, dict):
+                    self._engine.set_params(**data)
+                else:
+                    self._generate(*data)
+        finally:
+            self._engine_destroy()
 
     def stop(self):
         if self._work:
@@ -367,10 +443,20 @@ class MultiTTS:
         self._work = True
 
     def to_file(self, filename: str, text: str, voice=None, format_=None, sets=None):
+        """Generate and save audio in a file"""
         return self._caller().to_file(filename, text, voice, format_, sets)
 
     def say(self, text: str, voice=None, format_=None, buff=DEFAULT_CHUNK_SIZE, sets=None):
+        """
+        Starting audio generation and returned it chunk by chunk
+        with tts.say(*args, **kwargs) as gen:
+            print('chunks count: ', len([print('new chunk, len: ', len(chunk)) for chunk in gen]))
+        """
         return self._caller().say(text, voice, format_, buff, sets)
+
+    def get(self, text: str, voice=None, format_=None, sets=None) -> bytes:
+        """Generate and returned audio as bytes"""
+        return self._caller().get(text, voice, format_, sets)
 
     def _caller(self):
         with self._lock:
@@ -395,7 +481,7 @@ class MultiTTS:
         [x.join() for x in self._workers]
 
 
-class TTS:
+class TTS(MultiTTS):
     PARAMS = {
         'threads': 'THREADED',
         'force_process': 'PROCESSES_MODE',
@@ -407,12 +493,13 @@ class TTS:
         'flac_path': 'FLACPATH',
         'quiet': 'QUIET',
         'config_path': 'RHVOICECONFIGPATH',
+        'stream': 'RHVOICESTREAM',
     }
 
     def __init__(self, threads=_unset, force_process=_unset,
                  lib_path=_unset, data_path=_unset, resources=_unset,
                  lame_path=_unset, opus_path=_unset, flac_path=_unset,
-                 quiet=_unset, config_path=_unset,
+                 quiet=_unset, config_path=_unset, stream=_unset,
                  ):
         """
         :param int or bool or None threads: If equal to 1, created one thread object,
@@ -431,27 +518,34 @@ class TTS:
         :param bool or None quiet: If True don't info output. Default False.
         :param str or None config_path: Path to folder, contain RHVoice.conf in linux and RHVoice.ini in windows.
         Default /usr/local/etc/RHVoice.
+        :param bool stream: Processing and sending chunks soon as possible,
+        otherwise processing and sending only full data including length:
+        say will return one big chunk, formats other than wav and pcm will be generated much slower. Default True.
         """
-        kwargs = {}
+        envs = {}
         for key in self.PARAMS:
             if key in locals() and locals()[key] is not _unset:
-                kwargs[key] = locals()[key]
+                envs[key] = locals()[key]
 
-        envs = self._get_environs(kwargs)
-
+        envs = self._get_environs(envs)
+        quiet = self._prepare_bool(envs.pop('quiet', False))
+        stream = self._prepare_bool(envs.pop('stream', True), True)
         self._threads = self._prepare_threads(envs.pop('threads', None))
         self._process = self._prepare_process(envs.pop('force_process', None), self._threads)
-        quiet = self._prepare_bool(envs.pop('quiet', False))
         self._cmd = self._get_cmd(
-            quiet,
+            quiet, stream,
             envs.pop('lame_path', None),
             envs.pop('opus_path', None),
             envs.pop('flac_path', None),
         )
         self._formats = frozenset(['pcm', 'wav'] + [key for key in self._cmd])
 
-        envs2 = envs.copy()
-        lib_path = {} if 'lib_path' not in envs2 else {'lib_path': envs2.pop('lib_path')}
+        self.__test_engine(envs.copy(), quiet)
+
+        super().__init__(self._threads, self._process, self._cmd, self._formats, **envs, stream=stream)
+
+    def __test_engine(self, envs: dict, quiet: bool):
+        lib_path = {} if 'lib_path' not in envs else {'lib_path': envs.pop('lib_path')}
         test = rhvoice_proxy.Engine(**lib_path)
         self._api = test.api
         self._version = test.version
@@ -461,18 +555,11 @@ class TTS:
                     self._api, rhvoice_proxy.SUPPORT, self._version
                 )
             )
-        test.init(play_speech_cb=lambda *_: True, set_sample_rate_cb=lambda *_: True, **envs2)
+        test.init(play_speech_cb=lambda *_: True, set_sample_rate_cb=lambda *_: True, **envs)
         self._voices = test.voices
         self._params = test.params
         self._voice_profiles = test.voice_profiles
-        del test
-
-        tts = MultiTTS(self._threads, self._process, self._cmd, self._formats, **envs)
-
-        self.say = tts.say
-        self.to_file = tts.to_file
-        self.__set_params = tts.set_params
-        self.join = tts.join
+        test.exterminate()
 
     @property
     def formats(self) -> frozenset:
@@ -517,7 +604,7 @@ class TTS:
         except RuntimeError as e:
             print('set_params error: {}'.format(e))
         if result:
-            self.__set_params(**kwargs)
+            super().set_params(**kwargs)
         return result
 
     def get_params(self, param=None):
@@ -567,16 +654,19 @@ class TTS:
         return threads
 
     @staticmethod
-    def _get_cmd(quiet, lame, opus, flac):
+    def _get_cmd(quiet, stream, lame, opus, flac):
         base_cmd = {
-            'mp3': [[lame or 'lame', '-htv', '--silent', '-', '-'], 'lame'],
-            'opus': [[opus or 'opusenc', '--quiet', '--discard-comments', '--ignorelength', '-', '-'], 'opus-tools'],
-            'flac': [[flac or 'flac', '--totally-silent', '--best', '--stdout', '--ignore-chunk-sizes', '-'], 'flac'],
+            'mp3': [[lame or 'lame', '-t', '-hv', '--silent', '-', '-'], 'lame'],
+            'opus': [[opus or 'opusenc', '--ignorelength', '--quiet', '--discard-comments', '-', '-'], 'opus-tools'],
+            'flac': [[flac or 'flac', '--ignore-chunk-sizes', '--totally-silent', '--best', '--stdout', '-'], 'flac'],
         }
         cmd = {}
+
         for key, val in base_cmd.items():
             if shutil.which(val[0][0]):
                 cmd[key] = val[0]
+                if not stream:
+                    cmd[key].pop(1)
             elif not quiet:
                 print('Disable {} support - {} not found. Use apt install {}'.format(key, val[0][0], val[1]))
         return cmd
