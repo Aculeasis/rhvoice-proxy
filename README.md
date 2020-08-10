@@ -67,7 +67,7 @@ tts.to_file(filename='esperanto.ogg', text='Saluton mondo', voice='spomenka', fo
 ```
 `format_` is output audio format. Must be present in `tts.formats`.
 
-`voice` is a voice of speaker. Must be present in `tts.voice_profiles` or `tts.voices`.
+`voice` is a voice of speaker. Must be present in `tts.voice_profiles`.
 `voice='Voice', sets=None` equal `voice=None, sets={'voice_profile': 'Voice'}`, `voice` more priority.
 
 `sets` may set as dict containing synthesis parameters as in [set_params](#set_params).
