@@ -3,8 +3,6 @@ import unittest
 from rhvoice_wrapper import rhvoice_bindings
 from rhvoice_wrapper import rhvoice_proxy
 
-SUPPORT_TUPLE = tuple(tuple(int(x) for x in k.split('.')) for k in rhvoice_proxy.SUPPORT)
-
 
 def synth_params_keys(api: tuple):
     # noinspection PyProtectedMember
@@ -14,7 +12,7 @@ def synth_params_keys(api: tuple):
 
 class SynthesisParams(unittest.TestCase):
     def test_orphan_fields(self):
-        all_fields = {key for api in SUPPORT_TUPLE for key in synth_params_keys(api)}
+        all_fields = {key for api in rhvoice_bindings.ADAPTED for key in synth_params_keys(api)}
         all_checks = {key for key in rhvoice_proxy.SynthesisParams.CHECKS}
 
         self.assertSetEqual(all_fields, all_checks)
@@ -48,7 +46,7 @@ def _make():
     def str_ver(api_: tuple):
         return ''.join(str(x) for x in api_)
 
-    for api in SUPPORT_TUPLE:
+    for api in rhvoice_bindings.ADAPTED:
         def fun_api(self):
             # noinspection PyProtectedMember
             SynthesisParams._test_api(self, api)
@@ -60,8 +58,8 @@ def _make():
         setattr(SynthesisParams, 'test_fields_{}'.format(version), fun_field)
         setattr(SynthesisParams, 'test_api_{}'.format(version), fun_api)
 
-    api_start = SUPPORT_TUPLE[0]
-    api_end = SUPPORT_TUPLE[-1]
+    api_start = rhvoice_bindings.ADAPTED[0]
+    api_end = rhvoice_bindings.ADAPTED[-1]
 
     def fun_diff(self):
         # noinspection PyProtectedMember

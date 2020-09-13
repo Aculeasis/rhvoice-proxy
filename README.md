@@ -1,5 +1,5 @@
 ## High-level interface for RHVoice library
-[![API](https://img.shields.io/badge/API-1.2.0-lightgrey.svg)](https://github.com/Aculeasis/rhvoice-proxy)
+[![API](https://img.shields.io/badge/API-1.2.3-lightgrey.svg)](https://github.com/Aculeasis/rhvoice-proxy)
 [![PyPI version](https://img.shields.io/pypi/v/rhvoice-wrapper.svg)](https://pypi.org/project/rhvoice-wrapper/)
 [![Python versions](https://img.shields.io/badge/python-3.4%2B-blue.svg)](https://pypi.org/project/rhvoice-wrapper/)
 [![PyPI - Format](https://img.shields.io/pypi/format/rhvoice-wrapper.svg)](https://pypi.org/project/rhvoice-wrapper/)
@@ -123,8 +123,8 @@ tts.join()
 - `TTS.voices`: List of supported voices.
 - `TTS.voice_profiles`: List of supported voice profiles.
 - `TTS.voices_info`: Dictionary of supported voices with voices information. 
-- `TTS.api_version`: Supported RHVoice library version. If different from `lib_version`, may incorrect work.
-- `TTS.lib_version`: RHVoice library version.
+- `TTS.api_version`: Supported RHVoice library version.
+- `TTS.lib_version`: RHVoice library version. If not in `rhvoice_wrapper.rhvoice_proxy.SUPPORT`, may incorrect work.
 - `TTS.cmd`: Dictionary of external calls, as it is.
 
 ## Examples

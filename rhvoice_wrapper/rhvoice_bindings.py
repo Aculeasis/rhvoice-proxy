@@ -25,6 +25,8 @@ import os
 import platform
 from ctypes import CDLL, CFUNCTYPE, POINTER, Structure, c_char_p, c_double, c_int, c_uint, c_short, c_void_p
 
+ADAPTED = ((0, 7, 2), (1, 0, 0), (1, 2, 0))
+
 
 class RHVoice_tts_engine_struct(Structure):
     pass
@@ -182,11 +184,12 @@ def _get_compatible_api(lib) -> tuple:
     except Exception:
         version = (1, 0, 0)
 
-    if version < (1, 0, 0):
-        return 0, 7, 2
-    if version < (1, 2, 0):
-        return 1, 0, 0
-    return 1, 2, 0
+    result = ADAPTED[0]
+    for check in ADAPTED:
+        if version < check:
+            break
+        result = check
+    return result
 
 
 def _lib_selector(lib_path):
