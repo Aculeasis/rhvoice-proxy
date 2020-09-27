@@ -3,10 +3,10 @@
 [![PyPI version](https://img.shields.io/pypi/v/rhvoice-wrapper.svg)](https://pypi.org/project/rhvoice-wrapper/)
 [![Python versions](https://img.shields.io/badge/python-3.4%2B-blue.svg)](https://pypi.org/project/rhvoice-wrapper/)
 [![PyPI - Format](https://img.shields.io/pypi/format/rhvoice-wrapper.svg)](https://pypi.org/project/rhvoice-wrapper/)
-[![Build Status](https://travis-ci.org/Aculeasis/rhvoice-proxy.svg?branch=master)](https://travis-ci.org/Aculeasis/rhvoice-proxy)
+[![Build Status](https://travis-ci.com/Aculeasis/rhvoice-proxy.svg?branch=master)](https://travis-ci.com/Aculeasis/rhvoice-proxy)
 [![Build status](https://ci.appveyor.com/api/projects/status/lan2fw4c4xl7pvya/branch/master?svg=true)](https://ci.appveyor.com/project/Aculeasis/rhvoice-proxy)
 
-Generate speech stream used [RHVoice](https://github.com/Olga-Yakovleva/RHVoice) library from text without re-initializing engine.
+Generating speech stream from text via [RHVoice](https://github.com/Olga-Yakovleva/RHVoice) library without re-initializing engine.
 This very fast and more convenient than call RHVoice-test.
 
 Supported audio formats: `wav`, `mp3`, `opus`, `flac` and `pcm` (raw RHVoice output).
