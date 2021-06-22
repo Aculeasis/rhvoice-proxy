@@ -14,7 +14,7 @@ Supported audio formats: `wav`, `mp3`, `opus`, `flac` and `pcm` (raw RHVoice out
 ## Install
 `pip3 install rhvoice-wrapper`
 
-This package **NOT** provide RHVoice. You must be build (or install) RHVoice, languages and voices manually. In Windows you must specify the paths for work.
+This package does **NOT** provide RHVoice itself. You must be build (or install) RHVoice, languages and voices manually. In Windows you must specify the paths for work.
 
 #### rhvoice-wrapper-bin
 **Warning**! `rhvoice-wrapper-bin` not working in **macOS**, install RHVoice manually.
