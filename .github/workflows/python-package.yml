@@ -46,6 +46,7 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
+        architecture: ${{ matrix.architecture }}
 
     - name: Install Windows system dependencies
       if: ${{ matrix.os == 'windows-2019' }}
