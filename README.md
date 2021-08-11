@@ -1,10 +1,9 @@
 ## High-level interface for RHVoice library
 [![API](https://img.shields.io/badge/API-1.2.3-lightgrey.svg)](https://github.com/Aculeasis/rhvoice-proxy)
 [![PyPI version](https://img.shields.io/pypi/v/rhvoice-wrapper.svg)](https://pypi.org/project/rhvoice-wrapper/)
-[![Python versions](https://img.shields.io/badge/python-3.4%2B-blue.svg)](https://pypi.org/project/rhvoice-wrapper/)
+[![Python versions](https://img.shields.io/badge/python-3.6%2B-blue.svg)](https://pypi.org/project/rhvoice-wrapper/)
 [![PyPI - Format](https://img.shields.io/pypi/format/rhvoice-wrapper.svg)](https://pypi.org/project/rhvoice-wrapper/)
-[![Build Status](https://travis-ci.com/Aculeasis/rhvoice-proxy.svg?branch=master)](https://travis-ci.com/Aculeasis/rhvoice-proxy)
-[![Build status](https://ci.appveyor.com/api/projects/status/lan2fw4c4xl7pvya/branch/master?svg=true)](https://ci.appveyor.com/project/Aculeasis/rhvoice-proxy)
+[![Build](https://github.com/Aculeasis/rhvoice-proxy/actions/workflows/python-package.yml/badge.svg)](https://github.com/Aculeasis/rhvoice-proxy/actions/workflows/python-package.yml)
 
 Generating speech stream from text via [RHVoice](https://github.com/Olga-Yakovleva/RHVoice) library without re-initializing engine.
 This very fast and more convenient than call RHVoice-test.
@@ -132,6 +131,6 @@ tts.join()
 - [Example usage](https://github.com/Aculeasis/rhvoice-rest/blob/master/app.py)
 
 ## Requirements
-- OS: Linux, Windows, macOS
+- OS: Linux, Windows
 - RHVoice library 0.7.2 or above, languages and voices
-- Python 3.4 +
+- Python 3.6 +

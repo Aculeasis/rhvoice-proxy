@@ -46,7 +46,7 @@ setup(
     description='High-level interface for RHVoice library',
     long_description=get_long_description(),
     long_description_content_type='text/markdown',
-    python_requires='>=3.4',
+    python_requires='>=3.6',
     extras_require={
         'rhvoice': ['rhvoice-wrapper-bin'],
     },
