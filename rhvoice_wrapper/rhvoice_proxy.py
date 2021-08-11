@@ -16,7 +16,7 @@ except ImportError:
     _LIB_PATH = None
     _DATA_PATH = None
 
-SUPPORT = ('0.7.2', '1.0.0', '1.2.0', '1.2.1', '1.2.2', '1.2.3')
+SUPPORT = ('0.7.2', '1.0.0', '1.2.0', '1.2.1', '1.2.2', '1.2.3', '1.4.2')
 
 
 class _SynthesisCheck:

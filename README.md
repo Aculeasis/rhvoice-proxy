@@ -1,5 +1,5 @@
 ## High-level interface for RHVoice library
-[![API](https://img.shields.io/badge/API-1.2.3-lightgrey.svg)](https://github.com/Aculeasis/rhvoice-proxy)
+[![API](https://img.shields.io/badge/API-1.4.2-lightgrey.svg)](https://github.com/Aculeasis/rhvoice-proxy)
 [![PyPI version](https://img.shields.io/pypi/v/rhvoice-wrapper.svg)](https://pypi.org/project/rhvoice-wrapper/)
 [![Python versions](https://img.shields.io/badge/python-3.6%2B-blue.svg)](https://pypi.org/project/rhvoice-wrapper/)
 [![PyPI - Format](https://img.shields.io/pypi/format/rhvoice-wrapper.svg)](https://pypi.org/project/rhvoice-wrapper/)
