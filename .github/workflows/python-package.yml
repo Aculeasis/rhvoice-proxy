@@ -18,7 +18,7 @@ jobs:
       matrix:
         include:
           - os: ubuntu-20.04
-            python-version: 3.6
+            python-version: 3.5
           - os: ubuntu-20.04
             python-version: 3.8
           - os: ubuntu-20.04
@@ -34,8 +34,6 @@ jobs:
 #        python-version: [3.6, 3.8, 3.9]
 
     steps:
-    - name: TT github.event_name ${{ github.event_name }}; github.event.action ${{ github.event.action }}; github.ref ${{ github.ref }}
-      run: true
     - uses: actions/checkout@v2
       with:
         fetch-depth: 0
