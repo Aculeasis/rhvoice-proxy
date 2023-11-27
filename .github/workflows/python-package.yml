@@ -26,9 +26,7 @@ jobs:
           - os: windows-2019
             python-version: 3.6
           - os: windows-2019
-            python-version: 3.8
-          - os: windows-2019
-            python-version: 3.8
+            python-version: 3.6
             architecture: x86
 #        os: [ubuntu-20.04, windows-2019] # macOS-10.15
 #        python-version: [3.6, 3.8, 3.9]
@@ -70,7 +68,7 @@ jobs:
     - name: Test with unittest
       run: python -m unittest discover -v -s rhvoice_wrapper/tests/
     - name: Upload artifacts
-      if: ${{ matrix.python-version == '3.8' }}
+      if: ${{ matrix.python-version == '3.6' }}
       uses: actions/upload-artifact@v2
       with:
         name: dist
@@ -93,7 +91,7 @@ jobs:
     - name: Remove exe
       run: rm dist/*.exe
     - name: Deploy to PYPI
-      uses: pypa/gh-action-pypi-publish@master
+      uses: pypa/gh-action-pypi-publish@release/v1
       with:
         skip_existing: true
         user: __token__
