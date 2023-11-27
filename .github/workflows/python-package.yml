@@ -21,13 +21,16 @@ jobs:
             python-version: 3.5
           - os: ubuntu-20.04
             python-version: 3.8
+            DEPLOY: 'yes'
           - os: ubuntu-20.04
             python-version: 3.9
           - os: windows-2019
             python-version: 3.6
+            DEPLOY: 'yes'
           - os: windows-2019
             python-version: 3.6
             architecture: x86
+            DEPLOY: 'yes'
 #        os: [ubuntu-20.04, windows-2019] # macOS-10.15
 #        python-version: [3.6, 3.8, 3.9]
 
@@ -68,7 +71,7 @@ jobs:
     - name: Test with unittest
       run: python -m unittest discover -v -s rhvoice_wrapper/tests/
     - name: Upload artifacts
-      if: ${{ matrix.python-version == '3.6' }}
+      if: ${{ matrix.DEPLOY != '' }}
       uses: actions/upload-artifact@v2
       with:
         name: dist
